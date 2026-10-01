@@ -26,18 +26,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Gradle 8.7
         run: |
           curl -sSL https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d "$HOME"
           echo "$HOME/gradle-8.7/bin" >> "$GITHUB_PATH"
 
-      - name: Point Gradle at the Android SDK
-        working-directory: android
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+      - name: Configure Android SDK
+        run: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "Using Android SDK at: $SDK"
+          ls "$SDK/platforms" 2>/dev/null || true
+          if [ ! -d "$SDK/platforms/android-34" ]; then
+            SDKMGR=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+            yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+            "$SDKMGR" "platforms;android-34" "build-tools;34.0.0"
+          fi
+          echo "sdk.dir=$SDK" > android/local.properties
 
       - name: Build debug APK
         working-directory: android
