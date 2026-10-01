@@ -6,11 +6,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.facecam.app.ui.FaceCamViewModel
-import com.facecam.app.ui.screens.CameraShopScreen
+import com.facecam.app.ui.screens.CamerasScreen
 import com.facecam.app.ui.screens.DoubleExposureScreen
 import com.facecam.app.ui.screens.GalleryScreen
 import com.facecam.app.ui.screens.OnboardingScreen
-import com.facecam.app.ui.screens.PaywallScreen
 import com.facecam.app.ui.screens.SettingsScreen
 import com.facecam.app.ui.screens.SplashScreen
 import com.facecam.app.ui.screens.ViewfinderScreen
@@ -20,10 +19,9 @@ object Routes {
     const val SPLASH = "splash"
     const val ONBOARDING = "onboarding"
     const val VIEWFINDER = "viewfinder"
-    const val SHOP = "shop"
+    const val CAMERAS = "cameras"
     const val GALLERY = "gallery"
     const val SETTINGS = "settings"
-    const val PAYWALL = "paywall"
     const val DOUBLE_EXPOSURE = "double_exposure"
 }
 
@@ -69,18 +67,17 @@ fun FaceCamNav(
         composable(Routes.VIEWFINDER) {
             ViewfinderScreen(
                 viewModel = viewModel,
-                onOpenShop = { navController.navigate(Routes.SHOP) },
+                onOpenCameras = { navController.navigate(Routes.CAMERAS) },
                 onOpenGallery = { navController.navigate(Routes.GALLERY) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenDoubleExposure = { navController.navigate(Routes.DOUBLE_EXPOSURE) }
             )
         }
 
-        composable(Routes.SHOP) {
-            CameraShopScreen(
+        composable(Routes.CAMERAS) {
+            CamerasScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onOpenPaywall = { navController.navigate(Routes.PAYWALL) }
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -93,13 +90,6 @@ fun FaceCamNav(
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Routes.PAYWALL) {
-            PaywallScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )

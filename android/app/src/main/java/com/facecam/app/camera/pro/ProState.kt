@@ -3,9 +3,10 @@ package com.facecam.app.camera.pro
 import kotlin.math.roundToInt
 
 /**
- * Immutable snapshot of the PRO (Blackmagic-Camera-style) shooting HUD.
+ * Immutable snapshot of the manual (Blackmagic-Camera-style) shooting HUD.
  *
- * PRO is strictly opt-in: when [enabled] is false the viewfinder behaves exactly
+ * Manual mode is strictly opt-in: when [enabled] is false the viewfinder behaves
+ * exactly
  * as the simple mode always has. Every manual control carries its own boolean so
  * that an unsupported control (as reported by [ProCapabilities]) can simply be
  * left off.

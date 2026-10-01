@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 /**
- * The PRO shooting HUD drawn over the live preview (Blackmagic-Camera style):
+ * The manual shooting HUD drawn over the live preview (Blackmagic-Camera style):
  * rule-of-thirds grid, horizontal level, a live luminance histogram and the
  * focus-peaking / zebra / false-colour overlays.
  *
@@ -53,7 +53,7 @@ fun ProHudOverlay(
         if (overlay != null && !overlay.isRecycled) {
             Image(
                 bitmap = overlay.asImageBitmap(),
-                contentDescription = "PRO preview overlay",
+                contentDescription = "Manual preview overlay",
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -171,7 +171,7 @@ private fun ReadoutRow(label: String, value: String, family: FontFamily) {
 }
 
 /**
- * The PRO control panel: overlay toggles plus manual ISO / shutter / WB / focus
+ * The manual control panel: overlay toggles plus manual ISO / shutter / WB / focus
  * sliders. Any control the device does not support is greyed out.
  */
 @Composable

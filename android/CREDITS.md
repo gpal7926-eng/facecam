@@ -17,8 +17,8 @@ network service; every library runs entirely on-device.
 - **Licence:** MIT
 - **Used for:** the optional, feature-flagged GPU path for live-preview and
   still-image filtering (`com.facecam.app.gpu.GpuFilterEngine`). The library is
-  disabled by default; the app's normal film pipeline is pure CPU
-  (`film/AnalogEffects`).
+  disabled by default; the app's normal pipelines are pure CPU
+  (`film/AnalogEffects` and `film/BeautyEffects`).
 
 MIT Licence text (android-gpuimage-plus):
 
@@ -49,13 +49,13 @@ SOFTWARE.
 ## Platform libraries
 
 - **AndroidX / Jetpack Compose / CameraX** - Apache License 2.0 (Google).
-- **Google Play Billing Library** - Apache License 2.0 (Google).
-- **Google Mobile Ads SDK (AdMob)** - Google terms; disabled for PRO users.
 - **Coil** - Apache License 2.0.
 - **AndroidX ExifInterface** - Apache License 2.0.
 
+FaceCam does not bundle any advertising or billing SDK.
+
 ## Fonts & assets
 
-- All frames, grain, vignette, light leaks, dust, date stamps and the FaceCam
-  branding band are drawn procedurally with `android.graphics`. No third-party
-  image or font assets are bundled.
+- All frames, grain, vignette, light leaks, dust, date stamps, the FaceCam
+  branding band and the Beauty enhance are drawn procedurally with
+  `android.graphics`. No third-party image or font assets are bundled.

@@ -1,6 +1,18 @@
 # FaceCam - Android Setup Guide
 
-FaceCam is a 100% offline vintage film-camera app (Kotlin + Jetpack Compose).
+FaceCam is a **100% offline, completely free** camera app (Kotlin + Jetpack
+Compose). It ships two camera families:
+
+- **Vintage** - 13 film-camera simulations with procedural grain, light leaks,
+  vignette, dust, film frames, date stamps and the FaceCam branding band.
+- **Beauty** - 4 clean, iPhone-like cameras that enhance a photo (exposure,
+  contrast, saturation, warm-neutral white balance, edge-aware skin smoothing,
+  sharpening and a soft glow) with **no** film character at all.
+
+There is **no monetization of any kind**: no Google Play Billing, no AdMob, no
+in-app purchases, no paywall, no PRO membership and no ads. Every camera is
+unlocked for everyone from first launch.
+
 This guide takes you from the raw project tree to a signed AAB on Google Play.
 
 The project is a **plain Gradle project** (no version catalog). All versions are
@@ -15,8 +27,6 @@ declared inline in `build.gradle.kts` / `app/build.gradle.kts`:
 | minSdk           | 24         |
 | CameraX          | 1.3.4      |
 | Compose BOM      | 2024.09.02 |
-| Play Billing     | 6.2.1      |
-| AdMob (play-services-ads) | 22.6.0 |
 | Coil             | 2.7.0      |
 | ExifInterface    | 1.3.7      |
 | gpuimage-plus (optional, MIT) | 3.2.0-min |
@@ -92,93 +102,107 @@ After regenerating, verify:
 
 ---
 
-## 3. Where to paste your real IDs (placeholders ship in the code)
+## 3. No keys to paste - the app is free and offline
 
-The project ships with **clearly marked placeholder** AdMob and Play Billing
-IDs. Replace every placeholder below before publishing. **Never commit real
-keys** - keep them in your own private config or inject them at build time.
+Because FaceCam has **no ads and no billing**, there are **no AdMob ids, no
+billing product ids and no API keys anywhere in the project**. The manifest
+declares no `INTERNET` permission, and no app logic makes a network call. There
+is nothing to configure here before publishing.
 
-### 3a. AdMob
-
-| What | File | Placeholder |
-|------|------|-------------|
-| App ID | `app/src/main/AndroidManifest.xml` (`com.google.android.gms.ads.APPLICATION_ID`) | `ca-app-pub-0000000000000000~0000000000` |
-| Banner unit | `app/src/main/java/com/facecam/app/ads/AdManager.kt` (`BANNER_UNIT_ID`) | `ca-app-pub-0000000000000000/0000000000` |
-| Interstitial unit | `app/src/main/java/com/facecam/app/ads/AdManager.kt` (`INTERSTITIAL_UNIT_ID`) | `ca-app-pub-0000000000000000/1111111111` |
-
-The same placeholder unit ids also appear in
-`app/src/main/res/values/strings.xml` (`admob_banner_unit_id`,
-`admob_interstitial_unit_id`) for reference.
-
-Ad placement recap:
-- **Banner**: Gallery screen + result preview.
-- **Interstitial**: capped, shown after every **3rd** save only.
-- **Viewfinder**: always ad-free.
-- Ads are fully disabled once the user unlocks PRO.
-
-### 3b. Google Play Billing
-
-Create these products in **Play Console > Monetize > Products > In-app products**,
-then make sure the ids match `app/src/main/java/com/facecam/app/billing/ProductIds.kt`:
-
-- One non-consumable: `facecam_pro_unlock` (PRO).
-- One non-consumable per paid camera, prefixed `cam_`, e.g. `cam_roma`,
-  `cam_ins_2`. The suffix must equal the camera id in
-  `app/src/main/assets/cameras/*.json`.
-
-To use different product ids, edit `ProductIds.PRO` and
-`ProductIds.CAMERA_PREFIX`, and the `PAID_CAMERAS` list.
-
-> Billing requires the app to be signed and uploaded to a Play track (internal
-> testing is fine) before purchases resolve. On a plain debug build you will get
-> "item unavailable" - that is expected.
-
-### 3c. Privacy policy URL
-
-`app/src/main/java/com/facecam/app/ui/screens/SettingsScreen.kt` links to a
-placeholder `https://example.com/facecam/privacy`. Replace it with your hosted
-policy URL (required by Play for an app with ads).
+The only outbound link in the app is the optional **Privacy policy** button in
+Settings, which opens a URL in the user's browser. Replace the placeholder
+`https://example.com/facecam/privacy` in
+`app/src/main/java/com/facecam/app/ui/screens/SettingsScreen.kt` with your hosted
+policy URL (Play requires a privacy policy URL for every listing).
 
 ---
 
 ## 4. Camera presets
 
-The 13 film cameras live as JSON in `app/src/main/assets/cameras/`. Each file
-has a 20-float `colorMatrix` plus `grain`, `leak`, `vignette`, `frame`,
-`dateStamp`, `free` and `instant` fields, and a short `tag` (e.g.
-`"35mm Classic"`) that is printed in the FaceCam branding band. To add a camera,
-drop in a new JSON with a unique `id` and add the id to
-`ProductIds.PAID_CAMERAS` if it is paid. See `assets/cameras/_OVERLAYS.md` for the
-overlay/texture notes.
+All cameras live as JSON in `app/src/main/assets/cameras/`. Each file has an
+`id`, `name`, `tag`, `description`, a **`group`** (`"vintage"` or `"beauty"`)
+and a 20-float `colorMatrix`. The rest of the fields depend on the family:
+
+### Vintage cameras (`"group": "vintage"`) - 13 presets
+
+`nomo_135_b`, `nomo_135_m`, `nomo_135_p`, `toy_f`, `toy_k`, `roma`, `fr2`,
+`film_2007`, `eats`, `ins_2`, `swirly_2`, `range_67`, `wide_17`.
+
+They also carry the analog tuning consumed by `film/AnalogEffects.kt`:
+`grain`, `leak`, `vignette`, `frame`, `dateStamp`, `instant` and `overlay`.
+
+### Beauty cameras (`"group": "beauty"`) - 4 presets
+
+`beauty_natural`, `beauty_bright`, `beauty_warm`, `beauty_portrait`.
+
+Each carries a `beauty` object with the tuning consumed by
+`film/BeautyEffects.kt`:
+
+| Field        | Range | Meaning                                        |
+|--------------|-------|------------------------------------------------|
+| `exposure`   | stops | exposure lift (e.g. 0.08 = +0.08 EV)           |
+| `contrast`   | 0..1  | strength of the gentle S-curve                 |
+| `saturation` | 0..1  | colour boost relative to natural               |
+| `warmth`     | 0..1  | subtle warm-neutral white-balance shift        |
+| `smooth`     | 0..1  | edge-aware skin-smoothing strength             |
+| `sharpen`    | 0..1  | unsharp-mask sharpening strength               |
+| `glow`       | 0..1  | soft highlight bloom strength                  |
+
+To add a camera, drop in a new JSON with a unique `id` and the right `group`.
+Nothing needs to be registered anywhere else. See `assets/cameras/_OVERLAYS.md`
+for the overlay/texture notes.
 
 ---
 
-## 5. FaceCam branding band
+## 5. The two rendering pipelines
 
-Every processed photo gets a caption band appended **below** the photograph
-(the canvas grows taller; the image itself is never covered).
+The chosen camera's `group` selects the pipeline, wired in
+`ui/FaceCamViewModel.kt`:
 
-- Implementation: `app/src/main/java/com/facecam/app/film/BrandingRenderer.kt`.
-- Called at the very end of the still pipeline in `film/AnalogEffects.kt` -
-  after the film frame and the date stamp are drawn.
-- The band is about **7-8%** of the photo height, filled with the camera's frame
-  colour (cream / off-white), with a hairline divider along the top edge. The
-  wordmark **FaceCam** is drawn bold and letter-spaced on the left; the camera's
-  tag (e.g. `35mm Classic`) is right-aligned in a smaller grey face.
-- Drawn with `android.graphics` only - no assets, no network.
+| Group     | Pipeline | Output |
+|-----------|----------|--------|
+| `vintage` | `film/AnalogEffects.kt` -> frame -> date stamp -> `film/BrandingRenderer.kt` | film look with grain, leaks, vignette, dust, frame, date stamp and the branding band |
+| `beauty`  | `film/BeautyEffects.kt` | clean, well-exposed phone photo - **no** grain, leaks, vignette, frame, date stamp or branding |
 
-### The `branding` setting
+### BeautyEffects pipeline
+
+`film/BeautyEffects.kt` runs, in order:
+
+1. the preset's colour matrix (base grade),
+2. a subtle warm-neutral white balance,
+3. an exposure lift,
+4. a gentle S-curve contrast plus natural saturation,
+5. a highlight rolloff (soft shoulder so highlights never clip harshly),
+6. **edge-aware skin smoothing** - a blurred copy of the image is blended back
+   per pixel, weighted by a local high-frequency detail map, so flat areas
+   (skin) smooth while edges and fine texture stay sharp,
+7. a soft highlight glow (bloom),
+8. unsharp-mask sharpening.
+
+Everything is drawn with `android.graphics` only - no assets, no network, no
+native code.
+
+### FaceCam branding band
+
+Every **vintage** photo gets a caption band appended **below** the photograph
+(the canvas grows taller; the image itself is never covered). Implementation:
+`film/BrandingRenderer.kt`, called at the very end of the vintage pipeline. The
+band is about **7-8%** of the photo height, filled with the camera's frame
+colour (cream / off-white), with the wordmark **FaceCam** on the left and the
+camera's tag on the right.
 
 A boolean preference `branding` (default **true**) lives in
-`data/SettingsStore.kt`. Toggle it from **Settings -> "FaceCam watermark"**.
-When off, no band is appended and the pipeline output is identical to before.
+`data/SettingsStore.kt`; toggle it from **Settings -> "FaceCam watermark"**.
+Beauty photos never receive the band.
 
 ---
 
-## 6. PRO camera mode (Blackmagic-Camera style)
+## 6. Manual camera mode (Blackmagic-Camera style)
 
-PRO is **opt-in** and never changes the default simple mode. Tap the **PRO**
-button in the viewfinder's top bar to reveal the professional shooting HUD.
+The professional shooting HUD is **opt-in** and never changes the default simple
+mode. Tap the **MANUAL** button in the viewfinder's top bar to reveal it. (This
+mode was previously labelled "PRO"; it is **not** a paid feature - it is simply
+a manual shooting mode, and every camera is free.)
 
 New code lives under `app/src/main/java/com/facecam/app/camera/pro/`:
 
@@ -203,7 +227,7 @@ The viewfinder additions are in `ui/screens/ViewfinderScreen.kt`.
 - Live histogram, top-right, computed from preview frames.
 - Focus peaking and zebra stripes, both toggleable.
 - False-colour mode (luminance mapped to a colour ramp), toggleable.
-- A pro readout strip showing ISO / shutter / WB / focus.
+- A readout strip showing ISO / shutter / WB / focus.
 
 ### Real manual controls
 
@@ -224,15 +248,15 @@ slider and switch are disabled). Nothing here makes a network call.
 
 ## 7. Optional GPU filter path (android-gpuimage-plus, MIT)
 
-FaceCam's default film pipeline is pure CPU (`android.graphics`). It can
+FaceCam's default pipelines are pure CPU (`android.graphics`). They can
 *optionally* use the MIT-licensed
 [wysaid/android-gpuimage-plus](https://github.com/wysaid/android-gpuimage-plus)
 library for an OpenGL-accelerated path over the live preview and stills.
 
 > Note on coordinates: the GitHub project is `wysaid/android-gpuimage-plus`, but
-the **published Maven artifact id is `gpuimage-plus`** under group `org.wysaid`
-(hosted at `https://maven.wysaid.org/`). FaceCam uses the image-only `-min`
-variant, which needs no FFmpeg: `org.wysaid:gpuimage-plus:3.2.0-min`.
+> the **published Maven artifact id is `gpuimage-plus`** under group `org.wysaid`
+> (hosted at `https://maven.wysaid.org/`). FaceCam uses the image-only `-min`
+> variant, which needs no FFmpeg: `org.wysaid:gpuimage-plus:3.2.0-min`.
 
 ### Enabling it
 
@@ -263,7 +287,7 @@ The library is credited, with its MIT text, in `CREDITS.md`.
 
 ## 8. Building a signed AAB for Google Play
 
-### 5a. Create an upload keystore (once)
+### 8a. Create an upload keystore (once)
 
 ```bash
 keytool -genkeypair -v \
@@ -275,7 +299,7 @@ keytool -genkeypair -v \
 Keep this keystore and its passwords safe - you cannot re-sign updates without
 it (or Play App Signing).
 
-### 5b. Configure signing
+### 8b. Configure signing
 
 Create `keystore.properties` in the project root (and add it to `.gitignore`):
 
@@ -313,7 +337,7 @@ android {
 }
 ```
 
-### 5c. Build the bundle
+### 8c. Build the bundle
 
 ```bash
 ./gradlew bundleRelease
@@ -333,29 +357,32 @@ an APK:
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-### 5d. Before you ship - checklist
+### 8d. Before you ship - checklist
 
-- [ ] Replaced all AdMob app id + unit id placeholders.
-- [ ] Created Play Billing products and matched the ids in `ProductIds.kt`.
-- [ ] Set a real privacy policy URL.
+- [ ] Set a real privacy policy URL (Settings screen).
 - [ ] Bumped `versionCode` / `versionName` in `app/build.gradle.kts`.
 - [ ] Ran `./gradlew bundleRelease` with a release signing config.
 - [ ] Tested on a physical device (emulators have limited camera support).
+- [ ] Confirmed the app declares no `INTERNET` permission.
 
 ---
 
 ## 9. Notes and assumptions
 
-- **Offline by design.** App logic makes no network calls. The only outbound
-  traffic is the AdMob SDK, which is disabled for PRO users. The optional GPU
-  library and the PRO mode are 100% on-device.
+- **Free by design.** There is no billing, no ads, no paywall and no PRO
+  membership. All 17 cameras (13 vintage + 4 beauty) are unlocked for everyone.
+- **Offline by design.** App logic makes no network calls and the manifest
+  declares no `INTERNET` permission. The optional GPU library and the manual
+  mode are 100% on-device.
 - **Photos** are written to the app's private `files/gallery/` folder first, then
   optionally published to the device MediaStore (Pictures/FaceCam) on save.
-- **Purchases & settings** are stored in `SharedPreferences`. "Restore purchases"
-  re-validates against Google Play Billing.
+- **Settings** are stored in `SharedPreferences`.
+- **Beauty photos** are deliberately clean: no grain, leaks, vignette, frame,
+  date stamp or branding band. The date-stamp / border / watermark settings only
+  affect vintage cameras.
 - **Branding band** colour is derived from the camera's frame style (cream /
   off-white by default). The band is appended after the frame and date stamp.
-- **PRO mode** is opt-in; the simple viewfinder is unchanged when it is off.
+- **Manual mode** is opt-in; the simple viewfinder is unchanged when it is off.
   Unsupported manual controls are greyed out based on `CameraCharacteristics`.
 - **Third-party licences** are listed in `CREDITS.md`.
 - **No gradle-wrapper.jar** ships in the archive - regenerate it as in section 2.

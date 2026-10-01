@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="amber">#E8A33D</color>
-    <color name="amber_dark">#B4771F</color>
-    <color name="cream">#F5F2EA</color>
-    <color name="charcoal">#141414</color>
-    <color name="film_black">#0A0A0A</color>
-    <color name="warm_grey">#2A2724</color>
-    <color name="leak_red">#D96A5A</color>
+    <!-- Refined dark palette. Compose drives the live UI colours (see
+         ui/theme/Theme.kt); these values back the window theme and any
+         platform-level chrome. -->
+    <color name="amber">#F0B45C</color>
+    <color name="amber_dark">#C98A2E</color>
+    <color name="cream">#F4F1EA</color>
+    <color name="charcoal">#141419</color>
+    <color name="film_black">#0B0B0F</color>
+    <color name="warm_grey">#232329</color>
+    <color name="leak_red">#E0796A</color>
 
     <!-- Launcher icon background -->
-    <color name="ic_launcher_background">#141414</color>
+    <color name="ic_launcher_background">#0B0B0F</color>
 </resources>

@@ -1,20 +1,52 @@
-/* FaceCam — film simulation presets.
+/* FaceCam — camera presets.
  *
- * `filter`   CSS filter string — used for the live viewfinder preview and as the
- *            base colour curve at capture time.
- * `tone`     per-channel film tone curve applied per pixel (the realistic part):
- *              lift  -0.1..0.12  raises/lowers the black point (faded vs deep blacks)
- *              gamma  0.8..1.25  mid-tone contrast
- *              gain   0.9..1.1   overall brightness
- *              warmth -0.15..0.15 red/blue split (positive = warmer)
- *              sat    0.8..1.4   saturation
- * `halation` 0..1  glow that bleeds around bright highlights (very filmic)
- * `chroma`   0..1  colour noise, on top of the luminance grain
- * `grain` `dust` `vignette` `leak`  0..1  the randomised analog effects
+ * Two families:
+ *   group: 'vintage'  the 13 film simulations — grain, leaks, vignette, frames
+ *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural
+ *
+ * Vintage presets use: filter, tone, halation, chroma, grain, dust, vignette,
+ *                      leak, frame, dateStamp
+ * Beauty presets use:  filter, beauty { exposure, contrast, sat, warmth,
+ *                      smooth, sharpen, glow }
  */
 const CAMERAS = [
+  /* ------------------------------------------------------------------ *
+   * BEAUTY — clean, natural, iPhone-like
+   * ------------------------------------------------------------------ */
   {
-    id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic',
+    id: 'beauty_natural', name: 'Natural', tag: 'Clean & true', group: 'beauty',
+    desc: 'Balanced, true-to-life enhance. Soft skin, crisp detail, no colour shift.',
+    filter: 'contrast(1.04) saturate(1.06) brightness(1.04)',
+    beauty: { exposure: 0.030, contrast: 1.06, sat: 1.06, warmth: 0.015, smooth: 0.45, sharpen: 0.55, glow: 0.22 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_bright', name: 'Bright', tag: 'Airy daylight', group: 'beauty',
+    desc: 'Lifted, airy exposure with soft highlights. Great indoors and in shade.',
+    filter: 'contrast(1.02) saturate(1.04) brightness(1.10)',
+    beauty: { exposure: 0.075, contrast: 1.03, sat: 1.04, warmth: 0.005, smooth: 0.55, sharpen: 0.45, glow: 0.40 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_warm', name: 'Warm', tag: 'Golden skin', group: 'beauty',
+    desc: 'Golden, flattering warmth tuned for skin tones.',
+    filter: 'sepia(0.10) saturate(1.12) brightness(1.05)',
+    beauty: { exposure: 0.040, contrast: 1.07, sat: 1.14, warmth: 0.075, smooth: 0.50, sharpen: 0.50, glow: 0.30 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_portrait', name: 'Portrait', tag: 'Soft & focused', group: 'beauty',
+    desc: 'Stronger smoothing with crisp centre detail — a portrait-mode feel.',
+    filter: 'contrast(1.08) saturate(1.05) brightness(1.04)',
+    beauty: { exposure: 0.035, contrast: 1.09, sat: 1.05, warmth: 0.030, smooth: 0.72, sharpen: 0.75, glow: 0.34 },
+    paid: false, price: 0
+  },
+
+  /* ------------------------------------------------------------------ *
+   * VINTAGE — the 13 film simulations
+   * ------------------------------------------------------------------ */
+  {
+    id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic', group: 'vintage',
     desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
     filter: 'contrast(1.06) saturate(1.08) sepia(0.10) brightness(1.02)',
     tone: { lift: 0.015, gamma: 1.02, gain: 1.02, warmth: 0.035, sat: 1.08 },
@@ -25,7 +57,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody',
+    id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody', group: 'vintage',
     desc: 'Cool, contrasty, monochrome-leaning look with deep shadows.',
     filter: 'contrast(1.18) saturate(0.72) brightness(0.98) hue-rotate(-8deg)',
     tone: { lift: -0.035, gamma: 1.14, gain: 0.99, warmth: -0.05, sat: 0.82 },
@@ -36,7 +68,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy',
+    id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy', group: 'vintage',
     desc: 'Vivid, high-saturation film. Great for double exposures.',
     filter: 'contrast(1.12) saturate(1.35) brightness(1.03)',
     tone: { lift: 0.005, gamma: 1.06, gain: 1.02, warmth: 0.02, sat: 1.32 },
@@ -47,7 +79,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera',
+    id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera', group: 'vintage',
     desc: 'Cheap plastic-lens toy look. Heavy vignette, punchy colours.',
     filter: 'contrast(1.35) saturate(1.6) brightness(1.05)',
     tone: { lift: -0.01, gamma: 1.18, gain: 1.03, warmth: 0.05, sat: 1.55 },
@@ -58,7 +90,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera',
+    id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera', group: 'vintage',
     desc: 'Softer toy rendering with a cyan shift and strong falloff.',
     filter: 'contrast(1.22) saturate(1.3) hue-rotate(12deg) brightness(1.04)',
     tone: { lift: -0.005, gamma: 1.12, gain: 1.03, warmth: -0.04, sat: 1.28 },
@@ -69,7 +101,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer',
+    id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer', group: 'vintage',
     desc: 'Golden Mediterranean warmth. Faded blacks, sun-bleached colour.',
     filter: 'sepia(0.35) saturate(1.15) contrast(0.95) brightness(1.06)',
     tone: { lift: 0.055, gamma: 0.97, gain: 1.05, warmth: 0.09, sat: 1.10 },
@@ -80,7 +112,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave',
+    id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave', group: 'vintage',
     desc: 'Cinematic teal-and-orange with gentle halation.',
     filter: 'contrast(1.14) saturate(1.05) hue-rotate(-14deg) brightness(0.99)',
     tone: { lift: 0.02, gamma: 1.08, gain: 1.00, warmth: 0.045, sat: 1.02 },
@@ -88,10 +120,10 @@ const CAMERAS = [
     grain: 0.36, dust: 0.18, vignette: 0.40, leak: 0.28,
     leakColors: ['#ff8a5c', '#ffd08a'],
     frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
-    paid: true, price: 99
+    paid: false, price: 0
   },
   {
-    id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia',
+    id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia', group: 'vintage',
     desc: 'Early-2000s compact camera: harsh flash, oversharpened, magenta.',
     filter: 'contrast(1.25) saturate(1.25) hue-rotate(6deg) brightness(1.05)',
     tone: { lift: -0.02, gamma: 1.10, gain: 1.05, warmth: 0.055, sat: 1.22 },
@@ -102,7 +134,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera',
+    id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera', group: 'vintage',
     desc: 'Tuned for food: warm, appetising, boosted mid-tones.',
     filter: 'contrast(1.10) saturate(1.45) sepia(0.12) brightness(1.08)',
     tone: { lift: 0.02, gamma: 0.98, gain: 1.07, warmth: 0.075, sat: 1.40 },
@@ -110,10 +142,10 @@ const CAMERAS = [
     grain: 0.22, dust: 0.12, vignette: 0.26, leak: 0.30,
     leakColors: ['#ffcf5c', '#ff9f43'],
     frame: { style: 'thin', color: '#fff6e6' }, dateStamp: false,
-    paid: true, price: 99
+    paid: false, price: 0
   },
   {
-    id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid',
+    id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid', group: 'vintage',
     desc: 'Instant film with a thick white border and a developing wait.',
     filter: 'contrast(0.94) saturate(0.92) sepia(0.20) brightness(1.10)',
     tone: { lift: 0.075, gamma: 0.92, gain: 1.08, warmth: 0.05, sat: 0.95 },
@@ -125,7 +157,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh',
+    id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh', group: 'vintage',
     desc: 'Petzval-style swirl. Soft corners, dreamy centre.',
     filter: 'contrast(1.05) saturate(1.10) blur(0.4px) brightness(1.04)',
     tone: { lift: 0.03, gamma: 1.00, gain: 1.04, warmth: 0.02, sat: 1.10 },
@@ -133,10 +165,10 @@ const CAMERAS = [
     grain: 0.30, dust: 0.16, vignette: 0.62, leak: 0.34,
     leakColors: ['#c9a7ff', '#7fd8ff'],
     frame: { style: 'thin', color: '#f2ecff' }, dateStamp: false,
-    paid: true, price: 149
+    paid: false, price: 0
   },
   {
-    id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7',
+    id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7', group: 'vintage',
     desc: 'Medium-format rangefinder. Rich, dense, professional colour.',
     filter: 'contrast(1.16) saturate(1.12) brightness(0.99) sepia(0.06)',
     tone: { lift: -0.025, gamma: 1.10, gain: 1.01, warmth: 0.03, sat: 1.12 },
@@ -144,10 +176,10 @@ const CAMERAS = [
     grain: 0.26, dust: 0.14, vignette: 0.30, leak: 0.18,
     leakColors: ['#ffc9a0', '#ff8f6b'],
     frame: { style: 'cinema', color: '#141414' }, dateStamp: true,
-    paid: true, price: 199
+    paid: false, price: 0
   },
   {
-    id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide',
+    id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide', group: 'vintage',
     desc: 'Wide-lens look with lifted blacks and a cool cast.',
     filter: 'contrast(1.08) saturate(0.95) hue-rotate(-6deg) brightness(1.02)',
     tone: { lift: 0.04, gamma: 1.04, gain: 1.02, warmth: -0.045, sat: 0.98 },

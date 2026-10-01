@@ -22,10 +22,6 @@
     <!-- Runtime notification permission for the "developing" progress notice -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- AdMob -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
     <application
         android:name=".FaceCamApp"
         android:allowBackup="true"
@@ -37,11 +33,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FaceCam"
         tools:targetApi="34">
-
-        <!-- Placeholder AdMob application ID. Replace with your real AdMob app ID. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-0000000000000000~0000000000" />
 
         <activity
             android:name=".MainActivity"

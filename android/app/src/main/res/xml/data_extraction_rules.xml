@@ -7,7 +7,6 @@
     <cloud-backup>
         <include domain="sharedpref" path="." />
         <include domain="file" path="gallery/" />
-        <exclude domain="file" path="ads/" />
         <exclude domain="cache" path="." />
     </cloud-backup>
     <device-transfer>

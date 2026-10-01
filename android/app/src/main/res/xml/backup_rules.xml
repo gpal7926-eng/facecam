@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Legacy Auto Backup rules (API 23-30). We back up the user's preferences and
-  the private gallery folder, and exclude the AdMob cache.
+  the private gallery folder.
 -->
 <full-backup-content>
     <include domain="sharedpref" path="." />
     <include domain="file" path="gallery/" />
-    <exclude domain="file" path="ads/" />
     <exclude domain="cache" path="." />
 </full-backup-content>

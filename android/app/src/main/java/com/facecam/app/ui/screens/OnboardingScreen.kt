@@ -29,19 +29,19 @@ private data class OnboardingPage(val title: String, val body: String)
 private val pages = listOf(
     OnboardingPage(
         "Point and shoot",
-        "Pick a film camera and shoot. FaceCam adds the grain, dust, light leaks and faded colours for you - no sliders."
+        "Pick a camera and shoot. Vintage adds grain, dust and light leaks for you; Beauty gives you a clean, well-exposed phone photo - no sliders."
     ),
     OnboardingPage(
-        "13 film cameras",
-        "135 B/M/P, TOY F/K, ROMA, FR2, 2007, EATS, INS 2, SWIRLY 2, Range 67 and Wide 17 - each a different look."
+        "Vintage & Beauty",
+        "13 vintage film cameras and 4 Beauty cameras, in two tabs. 135 B/M/P, TOY F/K, ROMA, FR2, 2007, EATS, INS 2, SWIRLY 2, Range 67, Wide 17 - plus NATURAL, BRIGHT, WARM and PORTRAIT."
     ),
     OnboardingPage(
         "Instant & double exposure",
         "Instant cameras 'develop' before your eyes. Try double exposure to blend two shots into one."
     ),
     OnboardingPage(
-        "Go PRO",
-        "Unlock every camera, import photos from your gallery, skip the developing wait and remove ads."
+        "Free, forever",
+        "Every camera is unlocked for everyone. No purchases, no ads, no accounts - and it all works offline."
     )
 )
 

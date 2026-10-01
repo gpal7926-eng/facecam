@@ -34,10 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.facecam.app.ui.FaceCamViewModel
 
 /**
- * Settings: date stamp, border, shutter sound, default camera, restore
- * purchases and the privacy policy link.
+ * Settings: date stamp, border, watermark, shutter sound and the default camera.
+ * The date stamp, border and watermark only affect vintage film cameras; Beauty
+ * cameras always render clean.
  */
 @Composable
 fun SettingsScreen(
@@ -76,7 +78,7 @@ fun SettingsScreen(
 
         SettingSwitch(
             title = "Date stamp",
-            subtitle = "Burn the date into the photo (like old film cameras)",
+            subtitle = "Burn the date into vintage film photos",
             checked = dateStamp
         ) {
             dateStamp = it
@@ -85,7 +87,7 @@ fun SettingsScreen(
 
         SettingSwitch(
             title = "Border",
-            subtitle = "Draw the camera's film frame around each photo",
+            subtitle = "Draw the film frame around each vintage photo",
             checked = border
         ) {
             border = it
@@ -94,7 +96,7 @@ fun SettingsScreen(
 
         SettingSwitch(
             title = "FaceCam watermark",
-            subtitle = "Add the FaceCam caption band under each photo",
+            subtitle = "Add the FaceCam caption band under each vintage photo",
             checked = branding
         ) {
             branding = it
@@ -143,13 +145,6 @@ fun SettingsScreen(
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         TextButton(
-            onClick = { viewModel.restorePurchases() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Restore purchases")
-        }
-
-        TextButton(
             onClick = {
                 val intent = Intent(
                     Intent.ACTION_VIEW,
@@ -164,7 +159,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "FaceCam v1.0.0 - all data stays on your device.",
+            text = "FaceCam v2.0.0 - free, offline, all data stays on your device.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

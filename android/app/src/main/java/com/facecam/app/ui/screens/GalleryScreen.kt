@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.facecam.app.gallery.GalleryPhoto
 import com.facecam.app.ui.FaceCamViewModel
-import com.facecam.app.ui.components.AdBanner
 import com.facecam.app.ui.components.EmptyState
 import com.facecam.app.ui.components.SectionTitle
 
@@ -59,7 +58,6 @@ fun GalleryScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val photos by viewModel.gallery.collectAsState()
-    val isPro by viewModel.isPro.collectAsState()
     var fullScreen by remember { mutableStateOf<GalleryPhoto?>(null) }
 
     Column(
@@ -111,8 +109,6 @@ fun GalleryScreen(
                 }
             }
         }
-
-        AdBanner(showAds = !isPro)
     }
 
     fullScreen?.let { photo ->

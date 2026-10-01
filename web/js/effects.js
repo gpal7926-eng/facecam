@@ -340,6 +340,92 @@ const Effects = (() => {
     return out;
   }
 
+  /* ---------- beauty (iPhone-like enhance) ---------- */
+  function blurCopy(src, px) {
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.filter = 'blur(' + px + 'px)';
+    x.drawImage(src, 0, 0);
+    x.filter = 'none';
+    return c;
+  }
+
+  /* Clean, natural, phone-camera enhance: exposure + gentle S-curve + natural
+     saturation, edge-aware skin smoothing, soft highlight glow, and unsharp
+     sharpening. No grain, no leaks, no vignette, no frame. */
+  function applyBeauty(canvas, b) {
+    b = b || {};
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const w = canvas.width, h = canvas.height;
+    const min = Math.min(w, h);
+
+    applyTone(canvas, {
+      lift: b.exposure || 0,
+      gamma: b.contrast || 1,
+      gain: 1,
+      warmth: b.warmth || 0,
+      sat: b.sat == null ? 1 : b.sat
+    });
+
+    const smooth = b.smooth || 0;
+    if (smooth > 0) {
+      const blurred = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
+      const img = ctx.getImageData(0, 0, w, h);
+      const od = img.data;
+      const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
+      const thr = 24;
+      for (let i = 0; i < od.length; i += 4) {
+        const dr = Math.abs(od[i] - bd[i]);
+        const dg = Math.abs(od[i + 1] - bd[i + 1]);
+        const db = Math.abs(od[i + 2] - bd[i + 2]);
+        const detail = (dr + dg + db) / 3;
+        let k = 1 - detail / thr;
+        if (k < 0) k = 0;
+        k *= smooth;
+        if (k > 0) {
+          od[i] += (bd[i] - od[i]) * k;
+          od[i + 1] += (bd[i + 1] - od[i + 1]) * k;
+          od[i + 2] += (bd[i + 2] - od[i + 2]) * k;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    const glow = b.glow || 0;
+    if (glow > 0) {
+      const t = document.createElement('canvas');
+      t.width = w; t.height = h;
+      const tc = t.getContext('2d');
+      tc.filter = 'brightness(1.4) contrast(2.0) blur(' + Math.max(2, Math.round(min * 0.010)) + 'px)';
+      tc.drawImage(canvas, 0, 0);
+      tc.filter = 'none';
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = Math.min(0.4, glow * 0.32);
+      ctx.drawImage(t, 0, 0);
+      ctx.restore();
+    }
+
+    const sharpen = b.sharpen || 0;
+    if (sharpen > 0) {
+      const blurred = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
+      const img = ctx.getImageData(0, 0, w, h);
+      const od = img.data;
+      const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
+      for (let i = 0; i < od.length; i += 4) {
+        const r = od[i] + (od[i] - bd[i]) * sharpen;
+        const g = od[i + 1] + (od[i + 1] - bd[i + 1]) * sharpen;
+        const bl = od[i + 2] + (od[i + 2] - bd[i + 2]) * sharpen;
+        od[i] = r < 0 ? 0 : r > 255 ? 255 : r;
+        od[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        od[i + 2] = bl < 0 ? 0 : bl > 255 ? 255 : bl;
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+    return canvas;
+  }
+
   /* ---------- double exposure ---------- */
   function blend(a, b) {
     const ctx = a.getContext('2d');
@@ -357,7 +443,7 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, withBranding, blend, rand, pick };
+  return { capture, process, withBranding, applyBeauty, blend, rand, pick };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }

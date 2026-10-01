@@ -43,7 +43,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "vintage film camera",
+                text = "film & beauty camera",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)

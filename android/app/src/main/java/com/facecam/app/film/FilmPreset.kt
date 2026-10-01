@@ -1,7 +1,38 @@
 package com.facecam.app.film
 
 /**
- * A single film "camera" simulation.
+ * The extra tuning a Beauty camera applies on top of its colour matrix.
+ *
+ * All values are small, phone-photo-friendly amounts - this is a clean,
+ * well-exposed "iPhone-like" look, not a vintage one. See [BeautyEffects] for
+ * the pipeline that consumes these.
+ *
+ *  - [exposure]   stops of exposure lift (e.g. 0.08 = +0.08 EV).
+ *  - [contrast]   0..1 strength of the gentle S-curve.
+ *  - [saturation] 0..1 boost of colour, relative to natural.
+ *  - [warmth]     0..1 subtle warm-neutral white balance shift.
+ *  - [smooth]     0..1 edge-aware skin-smoothing strength.
+ *  - [sharpen]    0..1 unsharp-mask sharpening strength.
+ *  - [glow]       0..1 strength of the soft highlight bloom.
+ */
+data class BeautyParams(
+    val exposure: Float = 0.08f,
+    val contrast: Float = 0.18f,
+    val saturation: Float = 0.06f,
+    val warmth: Float = 0.04f,
+    val smooth: Float = 0.35f,
+    val sharpen: Float = 0.30f,
+    val glow: Float = 0.10f
+)
+
+/** The two camera families shown in the picker. */
+object CameraGroup {
+    const val VINTAGE = "vintage"
+    const val BEAUTY = "beauty"
+}
+
+/**
+ * A single "camera" simulation.
  *
  * The [matrix] is a 4x5 colour matrix in the same row-major order Android's
  * [android.graphics.ColorMatrix] expects (20 floats):
@@ -11,8 +42,17 @@ package com.facecam.app.film
  *       b0 b1 b2 b3 b4
  *       a0 a1 a2 a3 a4 ]
  *
- * The remaining fields tune the procedural analog effects. Everything is applied
- * on-device with android.graphics only - no network, no native libs.
+ * A camera belongs to one of two families, given by [group]:
+ *
+ *  - [CameraGroup.VINTAGE] runs the procedural analog pipeline in
+ *    [AnalogEffects] (grain, light leaks, vignette, dust, frame, date stamp and
+ *    the FaceCam branding band).
+ *  - [CameraGroup.BEAUTY] runs the clean [BeautyEffects] pipeline instead - no
+ *    grain, leaks, vignette, frame, date stamp or branding, just an
+ *    iPhone-like enhance. Beauty cameras carry a [beauty] parameter block.
+ *
+ * Everything is applied on-device with android.graphics only - no network, no
+ * native libs. All cameras are free.
  */
 data class FilmPreset(
     val id: String,
@@ -20,6 +60,8 @@ data class FilmPreset(
     val description: String,
     /** Short tag burned into the FaceCam branding band, e.g. "35mm Classic". */
     val tag: String? = null,
+    /** "vintage" or "beauty" - which pipeline this camera runs. */
+    val group: String = CameraGroup.VINTAGE,
     val matrix: FloatArray,
     /** Grain density, 0..1 (higher = more visible film grain). */
     val grain: Float,
@@ -31,18 +73,21 @@ data class FilmPreset(
     val frame: String,
     /** Whether the date stamp is enabled by default for this camera. */
     val dateStamp: Boolean,
-    /** Free cameras are available without purchase. */
-    val free: Boolean,
     /** Instant cameras show the "developing" wait animation. */
     val instant: Boolean,
+    /** Beauty tuning; non-null only for beauty cameras. */
+    val beauty: BeautyParams? = null,
     /** Optional texture overlay asset file name, or null for procedural only. */
     val overlay: String? = null
 ) {
     /** Tag used in the branding band; falls back to the display name. */
     fun brandingTag(): String = tag?.takeIf { it.isNotBlank() } ?: name
 
-    /** True when the camera must be bought (not free) and not covered by PRO. */
-    fun isPaid(): Boolean = !free
+    /** True when this camera belongs to the Beauty family. */
+    val isBeauty: Boolean get() = group == CameraGroup.BEAUTY
+
+    /** True when this camera belongs to the Vintage film family. */
+    val isVintage: Boolean get() = !isBeauty
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

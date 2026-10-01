@@ -1,7 +1,13 @@
 package com.facecam.app.ui.screens
 
-import android.app.Activity
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +30,9 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
@@ -49,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -70,29 +77,27 @@ import kotlinx.coroutines.launch
 
 /**
  * The live viewfinder. Shows a CameraX preview with a lightweight tint + vignette
- * overlay, and the full set of capture controls.
+ * overlay, the full set of capture controls, and an optional manual shooting HUD.
  */
 @Composable
 fun ViewfinderScreen(
     viewModel: FaceCamViewModel,
-    onOpenShop: () -> Unit,
+    onOpenCameras: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDoubleExposure: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
     val cameraState by viewModel.cameraState.collectAsState()
     val preset by viewModel.selectedCamera.collectAsState()
-    val lastDeveloped by viewModel.lastDeveloped.collectAsState()
     val message by viewModel.message.collectAsState()
 
     var showPicker by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
 
-    // ---- PRO mode wiring (opt-in) ----
+    // ---- Manual mode wiring (opt-in) ----
     val proState by viewModel.proState.collectAsState()
     val proController = remember { ProCameraController() }
     val levelSensor = remember { LevelSensor(context) }
@@ -117,7 +122,7 @@ fun ViewfinderScreen(
         cameraController.setFlash(cameraState.flash)
     }
 
-    // Attach the PRO controller once the camera is bound, then push state to it.
+    // Attach the manual controller once the camera is bound, then push state to it.
     LaunchedEffect(proState, cameraState.cameraReady, cameraState.lensFacing) {
         if (cameraState.cameraReady) {
             val cam = cameraController.currentCamera()
@@ -140,7 +145,7 @@ fun ViewfinderScreen(
         cameraController.setFrameAnalyzer(if (proState.enabled) frameProcessor else null)
     }
 
-    // The accelerometer only runs while PRO is on.
+    // The accelerometer only runs while manual mode is on.
     DisposableEffect(proState.enabled) {
         if (proState.enabled) levelSensor.start() else levelSensor.stop()
         onDispose { levelSensor.stop() }
@@ -170,8 +175,12 @@ fun ViewfinderScreen(
                 .background(tint)
         )
 
-        // Live PRO HUD: grid, level, histogram and live overlays.
-        if (proState.enabled) {
+        // Live manual HUD: grid, level, histogram and live overlays.
+        AnimatedVisibility(
+            visible = proState.enabled,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(180))
+        ) {
             ProHudOverlay(
                 state = proState,
                 histogram = histogram,
@@ -196,17 +205,17 @@ fun ViewfinderScreen(
                 TextButton(onClick = { viewModel.toggleProMode() }) {
                     Icon(
                         Icons.Filled.Tune,
-                        contentDescription = "Pro mode",
+                        contentDescription = "Manual mode",
                         tint = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White
                     )
                     Text(
-                        text = "PRO",
+                        text = "MANUAL",
                         color = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                IconButton(onClick = onOpenShop) {
-                    Icon(Icons.Filled.ShoppingCart, contentDescription = "Camera shop", tint = Color.White)
+                IconButton(onClick = onOpenCameras) {
+                    Icon(Icons.Filled.GridView, contentDescription = "Cameras", tint = Color.White)
                 }
                 IconButton(onClick = onOpenDoubleExposure) {
                     Icon(Icons.Filled.CameraAlt, contentDescription = "Double exposure", tint = Color.White)
@@ -252,16 +261,16 @@ fun ViewfinderScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Selected camera chip.
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(Color(0x66000000))
                     .clickable { showPicker = true }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 18.dp, vertical = 9.dp)
             ) {
                 Text(
                     text = preset?.name ?: "Select camera",
@@ -271,10 +280,10 @@ fun ViewfinderScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -286,27 +295,23 @@ fun ViewfinderScreen(
                 }
 
                 // Shutter button.
-                Box(
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(4.dp, Color(0x55FFFFFF), CircleShape)
-                        .clickable(enabled = !cameraState.isCapturing) {
-                            scope.launch {
-                                if (cameraState.selfTimer.seconds > 0) {
-                                    for (s in cameraState.selfTimer.seconds downTo 1) {
-                                        countdown = s
-                                        delay(1000)
-                                    }
-                                    countdown = 0
+                ShutterButton(
+                    capturing = cameraState.isCapturing,
+                    onClick = {
+                        scope.launch {
+                            if (cameraState.selfTimer.seconds > 0) {
+                                for (s in cameraState.selfTimer.seconds downTo 1) {
+                                    countdown = s
+                                    delay(1000)
                                 }
-                                val bmp = runCatching { cameraController.capture() }.getOrNull()
-                                if (bmp != null && preset != null) {
-                                    viewModel.developCapture(bmp, preset!!.name)
-                                }
+                                countdown = 0
+                            }
+                            val bmp = runCatching { cameraController.capture() }.getOrNull()
+                            if (bmp != null && preset != null) {
+                                viewModel.developCapture(bmp, preset!!.name)
                             }
                         }
+                    }
                 )
 
                 IconButton(onClick = { viewModel.cycleFlash() }) {
@@ -326,26 +331,25 @@ fun ViewfinderScreen(
             }
         }
 
-        // PRO manual-control panel (only when PRO is enabled).
-        if (proState.enabled) {
+        // Manual-control panel (only when manual mode is enabled).
+        AnimatedVisibility(
+            visible = proState.enabled,
+            enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+            exit = fadeOut(tween(180)) + shrinkVertically(tween(180)),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             ProControlsPanel(
                 state = proState,
                 capabilities = proCaps,
                 onUpdate = { transform -> viewModel.updateProState(transform) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 160.dp)
+                modifier = Modifier.padding(bottom = 172.dp)
             )
         }
 
         if (showPicker) {
             CameraPickerSheet(
                 viewModel = viewModel,
-                onDismiss = { showPicker = false },
-                onLocked = {
-                    showPicker = false
-                    onOpenShop()
-                }
+                onDismiss = { showPicker = false }
             )
         }
 
@@ -358,7 +362,45 @@ fun ViewfinderScreen(
     }
 }
 
+/**
+ * A soft, modern shutter button: a thin outer ring with an inner disc that eases
+ * in slightly while a capture is in progress.
+ */
+@Composable
+private fun ShutterButton(
+    capturing: Boolean,
+    onClick: () -> Unit
+) {
+    val innerScale by animateFloatAsState(
+        targetValue = if (capturing) 0.72f else 1f,
+        animationSpec = tween(durationMillis = 160),
+        label = "shutterInner"
+    )
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .clip(CircleShape)
+            .background(Color(0x1FFFFFFF))
+            .border(3.dp, Color.White, CircleShape)
+            .clickable(enabled = !capturing, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .graphicsLayer {
+                    scaleX = innerScale
+                    scaleY = innerScale
+                }
+                .clip(CircleShape)
+                .background(
+                    if (capturing) MaterialTheme.colorScheme.primary else Color.White
+                )
+        )
+    }
+}
+
 private fun timerTint(timer: SelfTimer): Color = when (timer) {
     SelfTimer.OFF -> Color.White
-    else -> Color(0xFFE8A33D)
+    else -> Color(0xFFF0B45C)
 }

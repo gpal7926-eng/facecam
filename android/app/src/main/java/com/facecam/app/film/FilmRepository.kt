@@ -6,7 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Loads the 13 camera presets from `assets/cameras/*.json`.
+ * Loads the camera presets from `assets/cameras/*.json` - 13 vintage film
+ * cameras plus 4 Beauty cameras.
  *
  * Parsing is defensive: a malformed preset is skipped rather than crashing the
  * app, and a built-in fallback list is used if the assets folder is missing.
@@ -49,11 +50,20 @@ class FilmRepository(private val context: Context) {
 
     fun all(): List<FilmPreset> = order.mapNotNull { presets[it] }
 
+    /** Only the vintage film cameras, in display order. */
+    fun vintage(): List<FilmPreset> = all().filter { it.isVintage }
+
+    /** Only the Beauty cameras, in display order. */
+    fun beauty(): List<FilmPreset> = all().filter { it.isBeauty }
+
+    /** Cameras of a given group ("vintage" or "beauty"). */
+    fun ofGroup(group: String): List<FilmPreset> = all().filter { it.group == group }
+
     fun get(id: String): FilmPreset? = presets[id]
 
-    /** First free camera, used as the default selection. */
+    /** First camera, used as the default selection. */
     fun defaultCamera(): FilmPreset =
-        all().firstOrNull { it.free } ?: all().firstOrNull() ?: fallback().first()
+        all().firstOrNull() ?: fallback().first()
 
     private fun parse(text: String): FilmPreset {
         val o = JSONObject(text)
@@ -64,15 +74,29 @@ class FilmRepository(private val context: Context) {
             name = o.getString("name"),
             description = o.optString("description", ""),
             tag = if (o.isNull("tag")) null else o.optString("tag", null),
+            group = o.optString("group", CameraGroup.VINTAGE),
             matrix = matrix,
             grain = o.optDouble("grain", 0.3).toFloat(),
             leak = o.optDouble("leak", 0.1).toFloat(),
             vignette = o.optDouble("vignette", 0.3).toFloat(),
             frame = o.optString("frame", "35mm"),
             dateStamp = o.optBoolean("dateStamp", true),
-            free = o.optBoolean("free", false),
             instant = o.optBoolean("instant", false),
+            beauty = parseBeauty(o.optJSONObject("beauty")),
             overlay = if (o.isNull("overlay")) null else o.optString("overlay", null)
+        )
+    }
+
+    private fun parseBeauty(o: JSONObject?): BeautyParams? {
+        if (o == null) return null
+        return BeautyParams(
+            exposure = o.optDouble("exposure", 0.08).toFloat(),
+            contrast = o.optDouble("contrast", 0.18).toFloat(),
+            saturation = o.optDouble("saturation", 0.06).toFloat(),
+            warmth = o.optDouble("warmth", 0.04).toFloat(),
+            smooth = o.optDouble("smooth", 0.35).toFloat(),
+            sharpen = o.optDouble("sharpen", 0.30).toFloat(),
+            glow = o.optDouble("glow", 0.10).toFloat()
         )
     }
 
@@ -81,14 +105,28 @@ class FilmRepository(private val context: Context) {
             id = "nomo_135_b",
             name = "135 B",
             description = "Classic 35mm black-and-white film.",
+            group = CameraGroup.VINTAGE,
             matrix = ColorMatrixFactory.identity(),
             grain = 0.35f,
             leak = 0.10f,
             vignette = 0.30f,
             frame = "35mm",
             dateStamp = true,
-            free = true,
             instant = false
+        ),
+        FilmPreset(
+            id = "beauty_natural",
+            name = "NATURAL",
+            description = "Clean, true-to-life skin tones with a soft natural glow.",
+            group = CameraGroup.BEAUTY,
+            matrix = ColorMatrixFactory.identity(),
+            grain = 0f,
+            leak = 0f,
+            vignette = 0f,
+            frame = "none",
+            dateStamp = false,
+            instant = false,
+            beauty = BeautyParams()
         )
     )
 

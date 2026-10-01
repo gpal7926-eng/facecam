@@ -1,18 +1,21 @@
 /* FaceCam — web preview app (HTML / CSS / JavaScript).
  *
- * Mirrors the Android app's feature set and is fully self-contained: no build
- * step, no dependencies, no network calls.
+ * Fully free: every camera is unlocked, there is no paywall and there are no
+ * ads. Everything runs on-device with no network calls.
  *
- *   localStorage  -> settings, owned cameras, PRO flag, save counter
- *   IndexedDB     -> captured photos
- *   getUserMedia  -> live viewfinder   (falls back to a built-in demo scene)
- *   <canvas>      -> the whole film pipeline
+ *   localStorage  -> settings, save counter, seen flag
+ *   IndexedDB     -> captured photos (with an in-memory write-through copy)
+ *   getUserMedia  -> live viewfinder  (falls back to a built-in demo scene)
+ *   <canvas>      -> the film + beauty pipelines
+ *
+ * Two camera families: 'vintage' (film simulations) and 'beauty' (clean,
+ * iPhone-like enhance).
  */
 (function () {
   'use strict';
 
   /* ------------------------------------------------------------------ *
-   * Local storage (settings / ownership / PRO)
+   * Local storage
    * ------------------------------------------------------------------ */
   const LS = {
     get(key, fallback) {
@@ -26,20 +29,7 @@
     }
   };
 
-  const FREE_IDS = CAMERAS.filter(c => !c.paid).map(c => c.id);
-
   const store = {
-    owned() {
-      const o = LS.get('owned', null);
-      return o === null ? FREE_IDS.slice() : o;
-    },
-    owns(id) { return this.owned().indexOf(id) !== -1; },
-    grant(id) {
-      const o = this.owned();
-      if (o.indexOf(id) === -1) { o.push(id); LS.set('owned', o); }
-    },
-    isPro() { return LS.get('pro', false); },
-    setPro(v) { LS.set('pro', !!v); },
     settings() {
       return LS.get('settings', {
         dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b'
@@ -51,32 +41,26 @@
     seen() { return LS.get('seen', false); },
     markSeen() { LS.set('seen', true); },
     reset() {
-      ['owned', 'pro', 'settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
+      ['settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
     }
   };
 
   /* ------------------------------------------------------------------ *
-   * IndexedDB photo store
+   * Photo store — write-through so the gallery is always instant
    * ------------------------------------------------------------------ */
   const Photos = {
     db: null,
     mem: [],
     nextId: 1,
-    useMem: false,
 
-    /* Opens IndexedDB, but never blocks or hangs the UI: if the database is
-       unavailable (private mode, blocked storage, old browser) we silently
-       fall back to an in-memory store so the gallery still works. */
     open() {
       return new Promise((resolve) => {
-        if (!window.indexedDB) { this.useMem = true; resolve(null); return; }
+        if (!window.indexedDB) { resolve(null); return; }
         let settled = false;
-        const giveUp = setTimeout(() => {
-          if (!settled) { settled = true; this.useMem = true; resolve(null); }
-        }, 4000);
+        const giveUp = setTimeout(() => { if (!settled) { settled = true; resolve(null); } }, 4000);
         let req;
         try { req = indexedDB.open('facecam', 1); }
-        catch (e) { clearTimeout(giveUp); this.useMem = true; resolve(null); return; }
+        catch (e) { clearTimeout(giveUp); resolve(null); return; }
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains('photos')) {
@@ -88,25 +72,16 @@
           clearTimeout(giveUp);
           if (!settled) { settled = true; resolve(this.db); }
         };
-        req.onerror = () => {
-          clearTimeout(giveUp);
-          this.useMem = true;
-          if (!settled) { settled = true; resolve(null); }
-        };
+        req.onerror = () => { clearTimeout(giveUp); if (!settled) { settled = true; resolve(null); } };
       });
     },
 
-    /* Write-through: every photo is kept in memory straight away (so the
-       gallery is instant and never blocks), and mirrored into IndexedDB for
-       persistence across reloads. If IndexedDB misbehaves, the session still
-       works — only cross-reload persistence is lost. */
     add(photo) {
       const rec = Object.assign({}, photo, { id: this.nextId++ });
       this.mem.push(rec);
       if (this.db) {
-        try {
-          this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo);
-        } catch (e) { /* ignore — memory copy already holds it */ }
+        try { this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo); }
+        catch (e) { /* memory copy already holds it */ }
       }
       return Promise.resolve(rec.id);
     },
@@ -141,7 +116,7 @@
   };
 
   /* ------------------------------------------------------------------ *
-   * App state + small helpers
+   * State + helpers
    * ------------------------------------------------------------------ */
   const state = {
     cameraId: 'nomo_135_b',
@@ -165,7 +140,7 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
   const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
-  const rupee = (n) => '\u20B9' + n;
+  const groupOf = (cam) => (cam && cam.group) || 'vintage';
 
   function withTimeout(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -196,8 +171,7 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * Built-in demo scene (used when no camera is available, so the whole
-   * pipeline — shutter, film effects, save, gallery — still works)
+   * Built-in demo scene
    * ------------------------------------------------------------------ */
   function drawSampleScene(canvas) {
     canvas.width = 540; canvas.height = 960;
@@ -240,7 +214,7 @@
    * Camera
    * ------------------------------------------------------------------ */
   async function startCamera() {
-    const gen = ++state.camGen;   // invalidates any earlier in-flight attempt
+    const gen = ++state.camGen;
     stopCamera();
     state.demo = false;
     $('#demo-canvas').style.display = 'none';
@@ -268,7 +242,7 @@
       applyTorch();
       if (typeof Pro !== 'undefined' && Pro.refresh) Pro.refresh();
     } catch (e) {
-      if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
+      if (gen !== state.camGen || state.demo) return;
       let why = 'Camera is device par available nahi hai.';
       if (e && e.name === 'NotAllowedError') why = 'Camera permission deny ho gayi.';
       else if (e && e.name === 'NotFoundError') why = 'Koi camera nahi mila.';
@@ -291,8 +265,6 @@
     state.torchAvailable = false;
   }
 
-  /* Real torch if the device exposes it, otherwise we fall back to a
-     screen-flash at capture time. */
   async function applyTorch() {
     if (!state.stream) return;
     const track = state.stream.getVideoTracks()[0];
@@ -309,7 +281,7 @@
   }
 
   function startDemo() {
-    state.camGen++;   // cancel any pending camera attempt so it can't clobber this
+    state.camGen++;
     const cv = $('#demo-canvas');
     if (!cv.dataset.drawn) { drawSampleScene(cv); cv.dataset.drawn = '1'; }
     cv.style.display = 'block';
@@ -325,10 +297,12 @@
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    $('#live-vignette').style.opacity = Math.min(0.85, cam.vignette * 0.8).toFixed(2);
+    const vintage = groupOf(cam) === 'vintage';
+    $('#live-vignette').style.opacity = vintage
+      ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const frameEl = $('#live-frame');
-    frameEl.className = 'live-frame ' + (cam.frame ? cam.frame.style : '');
-    frameEl.style.setProperty('--frame-color', cam.frame ? cam.frame.color : '#fff');
+    frameEl.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
+    frameEl.style.setProperty('--frame-color', (vintage && cam.frame) ? cam.frame.color : 'transparent');
     $('#cam-name').textContent = cam.name;
     $('#cam-tag').textContent = cam.tag;
   }
@@ -343,12 +317,22 @@
     const source = state.demo ? state.demoSource : $('#video');
     let w = source.videoWidth || source.width || 1080;
     let h = source.videoHeight || source.height || 1440;
-    const maxDim = 1400;
+    const maxDim = 1300;
     if (Math.max(w, h) > maxDim) {
       const s = maxDim / Math.max(w, h);
       w = Math.round(w * s); h = Math.round(h * s);
     }
     return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
+  }
+
+  /* One place that decides which pipeline a shot goes through. */
+  function developShot(canvas, cam, settings) {
+    if (groupOf(cam) === 'beauty') {
+      Effects.applyBeauty(canvas, cam.beauty);
+      return canvas;                       // clean photo: no frame, no band
+    }
+    Effects.process(canvas, cam, settings);
+    return Effects.withBranding(canvas, cam, settings);
   }
 
   function screenFlash() {
@@ -417,18 +401,16 @@
   }
 
   function afterCapture(cam, canvas) {
-    if (cam.instant && !store.isPro()) {
+    if (cam.instant) {
       const developed = canvas.cloneNode(false);
       developed.width = canvas.width; developed.height = canvas.height;
       developed.getContext('2d').drawImage(canvas, 0, 0);
-      Effects.process(developed, cam, store.settings());
-      const devOut = Effects.withBranding(developed, cam, store.settings());
-      state.lastPhoto = { dataUrl: devOut.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       runDeveloping();
     } else {
-      Effects.process(canvas, cam, store.settings());
-      const branded = Effects.withBranding(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       if (store.settings().sound) beep();
       openResult();
     }
@@ -459,7 +441,7 @@
     if (!state.lastPhoto) return;
     state.showingOriginal = !state.showingOriginal;
     $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.lastPhoto.dataUrl;
-    $('#btn-before').textContent = state.showingOriginal ? 'Film' : 'Original';
+    $('#btn-before').textContent = state.showingOriginal ? 'Edited' : 'Original';
     $('#btn-before').classList.toggle('on', state.showingOriginal);
   }
 
@@ -492,9 +474,8 @@
       });
     } catch (e) { /* storage unavailable — still deliver the file */ }
     download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
-    const n = store.bumpSaves();
+    store.bumpSaves();
     toast('Gallery mein save ho gaya');
-    if (!store.isPro() && n % 3 === 0) showInterstitial();
   }
 
   function download(dataUrl, name) {
@@ -518,12 +499,6 @@
     } catch (e) {}
     download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
     toast('Share support nahi — photo download ho gayi');
-  }
-
-  function showInterstitial() {
-    const ad = $('#interstitial');
-    ad.classList.add('show');
-    setTimeout(() => ad.classList.remove('show'), 2500);
   }
 
   /* ------------------------------------------------------------------ *
@@ -568,8 +543,6 @@
     }
   }
 
-  /* Paint instantly from the in-memory copy so the gallery never waits on
-     storage, then refresh once the database answers. */
   function renderGallery() {
     paintGallery(Photos.mem.slice());
     Photos.all().then(list => paintGallery(list)).catch(() => {});
@@ -598,58 +571,59 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * Camera picker + shop
+   * Camera picker + cameras browser (all free, grouped by family)
    * ------------------------------------------------------------------ */
-  function renderPicker() {
+  function tabGroup(rootSel) {
+    const active = $(rootSel + ' .tab.active');
+    return active ? active.getAttribute('data-group') : 'vintage';
+  }
+
+  function setTab(rootSel, group) {
+    $$(rootSel + ' .tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-group') === group));
+  }
+
+  function renderPicker(group) {
+    group = group || tabGroup('#picker-tabs');
     const wrap = $('#picker-list');
     wrap.innerHTML = '';
-    CAMERAS.forEach(cam => {
-      const owned = store.owns(cam.id) || store.isPro();
+    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
       const item = document.createElement('button');
       item.className = 'picker-item' + (cam.id === state.cameraId ? ' selected' : '');
       item.innerHTML =
         '<span class="swatch" style="filter:' + cam.filter + '"></span>' +
         '<span class="pi-text"><strong>' + cam.name + '</strong><small>' + cam.tag + '</small></span>' +
-        (owned ? '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Owned') + '</span>'
-               : '<span class="pi-state locked">' + rupee(cam.price) + '</span>');
+        '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Use') + '</span>';
       item.addEventListener('click', () => {
-        if (!owned) { toast('Pehle ise shop se unlock karein'); closeSheet('#sheet-picker'); openShop(); return; }
         selectCamera(cam.id);
         closeSheet('#sheet-picker');
+        toast(cam.name + ' selected');
       });
       wrap.appendChild(item);
     });
   }
 
-  function renderShop() {
+  function renderCameras(group) {
+    group = group || tabGroup('#shop-tabs');
     const grid = $('#shop-grid');
     grid.innerHTML = '';
-    CAMERAS.forEach(cam => {
-      const owned = store.owns(cam.id) || store.isPro();
+    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
       const card = document.createElement('div');
-      card.className = 'shop-card';
+      card.className = 'shop-card' + (cam.id === state.cameraId ? ' active' : '');
       card.innerHTML =
         '<div class="shop-preview" style="filter:' + cam.filter + '">' +
         '<div class="sp-vig"></div></div>' +
         '<div class="shop-body"><strong>' + cam.name + '</strong>' +
         '<small>' + cam.tag + '</small>' +
         '<p>' + cam.desc + '</p>' +
-        '<button class="buy-btn ' + (owned ? 'owned' : '') + '">' +
-        (owned ? 'Owned' : (cam.paid ? rupee(cam.price) : 'Free')) + '</button></div>';
-      const btn = card.querySelector('.buy-btn');
-      btn.addEventListener('click', () => {
-        if (owned) { selectCamera(cam.id); show('screen-viewfinder'); return; }
-        if (cam.paid && !store.isPro()) { openPaywall(); return; }
-        store.grant(cam.id);
-        renderShop(); renderPicker();
-        toast(cam.name + ' unlocked');
+        '<button class="buy-btn ' + (cam.id === state.cameraId ? 'owned' : '') + '">' +
+        (cam.id === state.cameraId ? 'In use' : 'Use') + '</button></div>';
+      card.querySelector('.buy-btn').addEventListener('click', () => {
+        selectCamera(cam.id);
+        renderCameras(group);
+        toast(cam.name + ' selected');
       });
       grid.appendChild(card);
     });
-    $('#shop-pro-banner').classList.toggle('pro', store.isPro());
-    $('#shop-pro-text').textContent = store.isPro()
-      ? 'PRO active — saare cameras aur tools unlocked.'
-      : 'PRO unlock karein — saare cameras + import + no ads.';
   }
 
   function selectCamera(id) {
@@ -660,8 +634,12 @@
     applyLiveLook();
   }
 
-  function openShop() { renderShop(); show('screen-shop'); }
-  function openPaywall() { show('screen-paywall'); }
+  function openCameras() {
+    setTab('#shop-tabs', groupOf(cameraById(state.cameraId)));
+    renderCameras();
+    show('screen-shop');
+  }
+
   function closeSheet(sel) { const el = $(sel); if (el) el.classList.remove('show'); }
   function openSheet(sel) { const el = $(sel); if (el) el.classList.add('show'); }
 
@@ -676,39 +654,37 @@
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    CAMERAS.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id; opt.textContent = c.name;
-      if (c.id === s.defaultCamera) opt.selected = true;
-      sel.appendChild(opt);
+    ['beauty', 'vintage'].forEach(g => {
+      const og = document.createElement('optgroup');
+      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
+      CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name;
+        if (c.id === s.defaultCamera) opt.selected = true;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
     });
-    $('#set-pro-state').textContent = store.isPro() ? 'PRO active' : 'Free plan';
   }
 
   /* ------------------------------------------------------------------ *
-   * Import (PRO)
+   * Import — free for everyone
    * ------------------------------------------------------------------ */
   function importPhoto(file) {
     const img = new Image();
     img.onload = () => {
       const cam = cameraById(state.cameraId);
       let w = img.naturalWidth, h = img.naturalHeight;
-      const maxDim = 1400;
+      const maxDim = 1300;
       if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
       const canvas = Effects.capture(img, w, h, cam.filter);
       state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
-      Effects.process(canvas, cam, store.settings());
-      const branded = Effects.withBranding(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       openResult();
     };
     img.onerror = () => toast('Ye image load nahi ho payi');
     img.src = URL.createObjectURL(file);
-  }
-
-  function requestImport() {
-    if (!store.isPro()) { openPaywall(); toast('Import PRO feature hai'); return; }
-    $('#import-input').click();
   }
 
   /* ------------------------------------------------------------------ *
@@ -755,44 +731,43 @@
       toast(state.double ? 'Double exposure ON — 2 shots lein' : 'Double exposure off');
     });
 
-    $('#btn-picker').addEventListener('click', () => { renderPicker(); openSheet('#sheet-picker'); });
-    $('#btn-shop').addEventListener('click', openShop);
-    /* Navigate immediately, then fill the grid — never block the UI on storage. */
+    $('#btn-picker').addEventListener('click', () => {
+      setTab('#picker-tabs', groupOf(cameraById(state.cameraId)));
+      renderPicker();
+      openSheet('#sheet-picker');
+    });
+    $('#btn-cameras').addEventListener('click', openCameras);
     $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
     $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
-    $('#btn-paywall').addEventListener('click', openPaywall);
+    $('#btn-import').addEventListener('click', () => $('#import-input').click());
     $('#btn-pro').addEventListener('click', () => {
       const on = !Pro.isEnabled();
       Pro.setEnabled(on);
       $('#btn-pro').classList.toggle('on', on);
-      toast(on ? 'PRO mode on — scopes live' : 'PRO mode off');
+      toast(on ? 'Manual mode on — scopes live' : 'Manual mode off');
     });
-    $('#shop-pro-banner').addEventListener('click', openPaywall);
-    $('#btn-import').addEventListener('click', requestImport);
 
     $$('[data-back]').forEach(b => b.addEventListener('click', () => {
-      const target = b.getAttribute('data-back');
-      show('screen-' + target);
-      if (target === 'viewfinder') { applyLiveLook(); }
+      show('screen-' + b.getAttribute('data-back'));
+      applyLiveLook();
     }));
 
     $$('[data-close-sheet]').forEach(b => b.addEventListener('click', () => closeSheet('#' + b.getAttribute('data-close-sheet'))));
     $$('.sheet-backdrop').forEach(b => b.addEventListener('click', () => b.parentElement.classList.remove('show')));
 
+    $$('#picker-tabs .tab').forEach(t => t.addEventListener('click', () => {
+      setTab('#picker-tabs', t.getAttribute('data-group'));
+      renderPicker(t.getAttribute('data-group'));
+    }));
+    $$('#shop-tabs .tab').forEach(t => t.addEventListener('click', () => {
+      setTab('#shop-tabs', t.getAttribute('data-group'));
+      renderCameras(t.getAttribute('data-group'));
+    }));
+
     $('#result-retake').addEventListener('click', () => { show('screen-viewfinder'); applyLiveLook(); });
     $('#result-save').addEventListener('click', savePhoto);
     $('#result-share').addEventListener('click', sharePhoto);
     $('#btn-before').addEventListener('click', toggleBefore);
-
-    $('#paywall-buy').addEventListener('click', () => {
-      store.setPro(true);
-      renderSettings(); renderShop(); renderPicker();
-      toast('PRO unlocked — sab kuch khul gaya');
-      show('screen-viewfinder');
-    });
-    $('#paywall-restore').addEventListener('click', () => {
-      toast(store.isPro() ? 'PRO restore ho gaya' : 'Koi purchase nahi mili');
-    });
 
     $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
     $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
@@ -800,8 +775,8 @@
     $('#set-branding').addEventListener('change', e => { const s = store.settings(); s.branding = e.target.checked; store.saveSettings(s); });
     $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
     $('#set-reset').addEventListener('click', () => {
-      if (confirm('App reset karein? Saari settings aur unlocks hat jayenge.')) {
-        store.reset(); renderSettings(); renderPicker(); renderShop(); toast('Reset ho gaya');
+      if (confirm('App reset karein? Saari settings hat jayengi.')) {
+        store.reset(); renderSettings(); toast('Reset ho gaya');
       }
     });
 
@@ -812,7 +787,7 @@
     });
 
     $('#fallback-demo').addEventListener('click', startDemo);
-    $('#fallback-pick').addEventListener('click', requestImport);
+    $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';

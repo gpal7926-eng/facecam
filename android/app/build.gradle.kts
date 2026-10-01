@@ -22,8 +22,8 @@ android {
         applicationId = "com.facecam.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -86,12 +86,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
-
-    // Google Play Billing
-    implementation("com.android.billingclient:billing-ktx:6.2.1")
-
-    // AdMob
-    implementation("com.google.android.gms:play-services-ads:22.6.0")
 
     // Image loading / EXIF
     implementation("io.coil-kt:coil-compose:2.7.0")

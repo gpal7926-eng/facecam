@@ -2,28 +2,33 @@
 <!--
   FaceCam - standalone single-file web preview.
   HTML + CSS + JavaScript in one file: no build step, no dependencies, no network.
-  Includes the FaceCam watermark band, the realistic film pipeline, and PRO mode
-  (grid, level, live histogram, focus peaking, zebra, false colour, manual controls).
+  17 cameras: 13 vintage film simulations + 4 beauty looks. Completely free,
+  no paywall, no ads. Manual camera mode included.
 -->
 
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0b0c">
-<meta name="description" content="FaceCam — offline vintage film camera. Purani film wali feel, ek click mein.">
-<title>FaceCam — Vintage Film Camera</title>
+<meta name="theme-color" content="#0a0a0c">
+<meta name="description" content="FaceCam — vintage film cameras and a beauty camera. Free, offline, no ads.">
+<title>FaceCam — Vintage &amp; Beauty Camera</title>
 <style>
 :root {
-  --bg: #0b0b0c;
-  --panel: #17171a;
-  --panel-2: #202024;
-  --line: #2c2c31;
-  --text: #f2efe9;
-  --muted: #9a978f;
-  --accent: #ff7a18;
-  --accent-2: #ffb347;
-  --danger: #ff5a5a;
+  --bg: #0a0a0c;
+  --bg-2: #101014;
+  --panel: #16161b;
+  --panel-2: #1e1e25;
+  --line: #272730;
+  --text: #f4f2ee;
+  --muted: #8f8d88;
+  --accent: #ff7a3d;
+  --accent-2: #ffb26b;
+  --danger: #ff5f5f;
+  --ok: #4ade80;
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
   --frame-color: #ffffff;
 }
 
@@ -35,19 +40,22 @@ html, body {
   background: #000;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
   overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
   position: relative;
   width: 100%;
-  max-width: 480px;
+  max-width: 460px;
   height: 100vh;
   height: 100dvh;
   margin: 0 auto;
   background: var(--bg);
   overflow: hidden;
-  box-shadow: 0 0 60px rgba(0,0,0,.8);
+  box-shadow: 0 0 80px rgba(0,0,0,.85);
 }
 
 /* ---------- Screens ---------- */
@@ -58,52 +66,53 @@ html, body {
   flex-direction: column;
   background: var(--bg);
 }
-.screen.active { display: flex; }
-.screen-body { flex: 1; overflow-y: auto; padding: 16px; }
+.screen.active { display: flex; animation: fade .22s ease; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.screen-body { flex: 1; overflow-y: auto; padding: 18px 18px 26px; }
 
 /* ---------- Splash ---------- */
 #screen-splash { align-items: center; justify-content: center; }
 .splash-inner { text-align: center; padding: 24px; }
 .logo {
-  font-size: 44px;
+  font-size: 42px;
   font-weight: 800;
-  letter-spacing: 1px;
-  background: linear-gradient(120deg, var(--accent-2), var(--accent));
+  letter-spacing: -0.5px;
+  background: linear-gradient(115deg, var(--accent-2), var(--accent));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
-.logo.small { font-size: 30px; }
-.logo-sub { color: var(--muted); margin-top: 10px; font-size: 15px; }
+.logo.small { font-size: 28px; }
+.logo-sub { color: var(--muted); margin-top: 10px; font-size: 14.5px; letter-spacing: .2px; }
 .film-strip {
-  margin: 26px auto 0;
-  width: 160px; height: 34px;
-  border-radius: 6px;
+  margin: 28px auto 0;
+  width: 150px; height: 32px;
+  border-radius: 8px;
   background:
-    repeating-linear-gradient(90deg, transparent 0 10px, #000 10px 18px),
-    linear-gradient(#f6efe1, #cdbfa4);
-  opacity: .85;
+    repeating-linear-gradient(90deg, transparent 0 9px, #000 9px 16px),
+    linear-gradient(#f6efe1, #cbbda2);
+  opacity: .8;
 }
 
 /* ---------- Onboarding ---------- */
 #screen-onboarding { justify-content: center; }
-.onb { padding: 28px 22px; }
-.onb-lead { color: var(--muted); line-height: 1.6; }
-.onb-list { list-style: none; padding: 0; margin: 20px 0; }
+.onb { padding: 30px 24px; }
+.onb-lead { color: var(--muted); line-height: 1.6; font-size: 15px; }
+.onb-list { list-style: none; padding: 0; margin: 22px 0; }
 .onb-list li {
-  padding: 11px 12px 11px 34px;
+  padding: 12px 14px 12px 38px;
   position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  margin-bottom: 9px;
+  border-radius: var(--r-md);
+  margin-bottom: 8px;
   font-size: 14.5px;
 }
 .onb-list li::before {
-  content: "\2713";
-  position: absolute; left: 12px; top: 11px;
-  color: var(--accent);
-  font-weight: 700;
+  content: "";
+  position: absolute; left: 15px; top: 17px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
 }
 
 /* ---------- Buttons ---------- */
@@ -113,38 +122,40 @@ html, body {
   background: var(--panel-2);
   color: var(--text);
   padding: 13px 18px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
-  transition: transform .08s ease, background .15s ease;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
 }
-.btn:active { transform: scale(.97); }
+.btn:active { transform: scale(.975); }
 .btn.primary {
-  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  background: linear-gradient(115deg, var(--accent), var(--accent-2));
   border: none;
-  color: #1a1205;
+  color: #22120a;
   width: 100%;
 }
-.btn.danger { color: var(--danger); border-color: rgba(255,90,90,.4); }
+.btn.danger { color: var(--danger); border-color: rgba(255,95,95,.35); }
 .btn.small { padding: 9px 14px; font-size: 13px; }
 
 .icon-btn {
   appearance: none;
-  border: none;
-  background: rgba(20,20,22,.62);
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(18,18,22,.62);
   color: var(--text);
   width: 42px; height: 42px;
   border-radius: 50%;
-  font-size: 17px;
+  font-size: 16px;
+  font-family: inherit;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,.08);
+  backdrop-filter: blur(8px);
+  transition: transform .08s ease, background .15s ease;
 }
-.icon-btn.on { background: var(--accent); color: #1a1205; }
+.icon-btn.on { background: var(--accent); color: #22120a; border-color: transparent; }
 .icon-btn:active { transform: scale(.94); }
 
 .link-btn {
@@ -152,7 +163,8 @@ html, body {
   border: none;
   color: var(--accent-2);
   font-size: 14px;
-  padding: 10px 4px;
+  font-family: inherit;
+  padding: 11px 4px;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
@@ -162,12 +174,13 @@ html, body {
 
 /* ---------- Viewfinder ---------- */
 .vf { position: relative; flex: 1; overflow: hidden; background: #000; }
-#video {
+#video, #demo-canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   transition: filter .25s ease;
 }
+#demo-canvas { display: none; }
 .live-vignette {
   position: absolute; inset: 0;
   pointer-events: none;
@@ -178,7 +191,7 @@ html, body {
 .live-frame {
   position: absolute; inset: 0;
   pointer-events: none;
-  transition: all .2s ease;
+  transition: border .2s ease;
 }
 .live-frame.thin { border: 7px solid var(--frame-color); }
 .live-frame.thick { border: 20px solid var(--frame-color); }
@@ -191,22 +204,21 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 28px;
+  gap: 10px;
+  padding: 30px;
   text-align: center;
-  background: radial-gradient(circle at 50% 30%, #26262b, #101012);
+  background: radial-gradient(circle at 50% 32%, #23232a, #0e0e11);
 }
 .cam-fallback.show { display: flex; }
 .cam-fallback p { margin: 0; color: var(--muted); }
+.cam-fallback .btn { width: 100%; max-width: 280px; }
 
 .countdown {
-  position: absolute;
-  top: 50%; left: 50%;
+  position: absolute; top: 50%; left: 50%;
   transform: translate(-50%,-50%);
-  font-size: 96px;
-  font-weight: 800;
+  font-size: 92px; font-weight: 800;
   color: #fff;
-  text-shadow: 0 4px 24px rgba(0,0,0,.7);
+  text-shadow: 0 4px 26px rgba(0,0,0,.7);
   display: none;
 }
 .countdown.show { display: block; }
@@ -214,201 +226,224 @@ html, body {
 .vf-top {
   position: absolute; top: 0; left: 0; right: 0;
   display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 14px 14px 0;
+  padding: 16px 16px 0;
 }
 .vf-title { display: flex; flex-direction: column; }
-.vf-title span { font-weight: 700; font-size: 15px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-.vf-title small { color: var(--accent-2); font-size: 12px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.vf-title span { font-weight: 700; font-size: 15px; letter-spacing: .2px; text-shadow: 0 1px 8px rgba(0,0,0,.75); }
+.vf-title small { color: var(--accent-2); font-size: 11.5px; letter-spacing: .4px; text-shadow: 0 1px 8px rgba(0,0,0,.75); }
 .vf-top-actions { display: flex; gap: 8px; }
 
 .vf-bottom {
   position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 0 14px 18px;
-  background: linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0));
+  padding: 0 16px 22px;
+  background: linear-gradient(to top, rgba(0,0,0,.82) 40%, rgba(0,0,0,0));
 }
 .vf-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
-.small-row { margin-bottom: 12px; }
-.small-row .icon-btn { width: 38px; height: 38px; font-size: 15px; }
-.main-row { gap: 16px; }
-.import-row { margin-top: 12px; justify-content: center; }
+.small-row { margin-bottom: 14px; }
+.small-row .icon-btn { width: 38px; height: 38px; font-size: 14px; }
+.main-row { gap: 18px; }
+.import-row { margin-top: 14px; justify-content: center; }
 
 .shutter {
   appearance: none;
-  width: 76px; height: 76px;
+  width: 74px; height: 74px;
   border-radius: 50%;
-  border: 4px solid rgba(255,255,255,.85);
-  background: rgba(255,255,255,.12);
+  border: 3px solid rgba(255,255,255,.9);
+  background: rgba(255,255,255,.10);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: transform .08s ease;
+  transition: transform .09s ease, background .15s ease;
+  box-shadow: 0 0 0 6px rgba(255,255,255,.06);
 }
 .shutter span {
   width: 58px; height: 58px;
   border-radius: 50%;
   background: #fff;
   display: block;
+  transition: transform .09s ease;
 }
-.shutter:active { transform: scale(.93); }
+.shutter:active { transform: scale(.94); }
+.shutter:active span { transform: scale(.9); }
 
 /* ---------- Developing ---------- */
 #screen-developing { align-items: center; justify-content: center; }
 .dev-wrap { text-align: center; padding: 20px; }
 #dev-img {
   width: 74vw; max-width: 320px;
-  border-radius: 6px;
+  border-radius: 8px;
   filter: brightness(3) blur(22px) saturate(.2);
   opacity: .25;
   transition: filter 2.4s ease, opacity 2.4s ease;
 }
 #dev-img.developed { filter: none; opacity: 1; }
-.dev-text { color: var(--muted); letter-spacing: 2px; margin-top: 18px; text-transform: uppercase; font-size: 13px; }
+.dev-text {
+  color: var(--muted); letter-spacing: 3px; margin-top: 20px;
+  text-transform: uppercase; font-size: 12px;
+}
 
 /* ---------- Result ---------- */
 #screen-result { align-items: center; justify-content: center; }
-.result-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; padding: 20px; }
+.result-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 22px; }
 #result-img {
-  max-width: 82vw; max-height: 58vh;
-  border-radius: 8px;
-  box-shadow: 0 14px 40px rgba(0,0,0,.6);
+  max-width: 84vw; max-height: 60vh;
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.62);
 }
-.result-actions { display: flex; gap: 10px; }
+.result-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
 .result-actions .btn { min-width: 84px; }
+.result-cam { color: var(--accent-2); font-size: 12.5px; letter-spacing: .8px; margin: -6px 0 0; text-transform: uppercase; }
+#btn-before.on { background: var(--accent); color: #22120a; border-color: transparent; }
 
 /* ---------- Top bar ---------- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--line);
+  padding: 16px 16px 12px;
 }
-.topbar h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.topbar h1 { font-size: 17px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+.topbar h1 small { color: var(--muted); font-weight: 500; font-size: 13px; }
 .topbar .icon-btn { width: 36px; height: 36px; font-size: 15px; }
 .topbar > span { width: 36px; }
 
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+.tab {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 9px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+.tab.active { background: var(--panel-2); color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+
 /* ---------- Gallery ---------- */
-.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .gallery-group-title {
   grid-column: 1 / -1;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 14px 0 4px;
+  letter-spacing: 1.2px;
+  margin: 16px 0 5px;
 }
 .gallery-cell {
   appearance: none; border: none; padding: 0;
   aspect-ratio: 3 / 4;
   background: var(--panel);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   cursor: pointer;
 }
 .gallery-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.empty { color: var(--muted); text-align: center; padding: 40px 20px; }
+.empty { color: var(--muted); text-align: center; padding: 46px 20px; }
 
 /* ---------- Settings ---------- */
-.settings-list { display: flex; flex-direction: column; gap: 2px; }
+.settings-list { display: flex; flex-direction: column; }
 .settings-list .row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 4px;
+  padding: 15px 2px;
   border-bottom: 1px solid var(--line);
   font-size: 15px;
 }
+.settings-list .row:last-of-type { border-bottom: none; }
 .settings-list select {
   background: var(--panel-2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 10px; font-size: 14px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 9px 11px; font-size: 14px; font-family: inherit;
+  max-width: 58%;
 }
 input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
-.fine { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.fine { color: var(--muted); font-size: 12.5px; line-height: 1.55; margin-top: 14px; }
 
-/* ---------- Shop ---------- */
-.pro-banner {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: linear-gradient(120deg, rgba(255,122,24,.22), rgba(255,179,71,.12));
-  border: 1px solid rgba(255,179,71,.35);
-  margin-bottom: 16px;
-  font-size: 14px;
-  cursor: pointer;
-}
-.pro-banner.pro { opacity: .7; }
-.pro-cta { font-weight: 700; color: var(--accent-2); white-space: nowrap; }
+/* ---------- Cameras browser ---------- */
 .shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .shop-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   overflow: hidden;
   display: flex; flex-direction: column;
+  transition: border-color .16s ease, transform .12s ease;
 }
+.shop-card.active { border-color: var(--accent); }
+.shop-card:active { transform: scale(.985); }
 .shop-preview {
   position: relative;
-  height: 96px;
+  height: 100px;
   background: linear-gradient(135deg, #6b7a8f, #c9b79c);
 }
 .sp-vig {
   position: absolute; inset: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 40%, rgba(0,0,0,.6) 100%);
+  background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%);
 }
-.shop-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.shop-body strong { font-size: 14px; }
-.shop-body small { color: var(--accent-2); font-size: 11.5px; }
-.shop-body p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 2px 0 8px; flex: 1; }
+.shop-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.shop-body strong { font-size: 14px; letter-spacing: .1px; }
+.shop-body small { color: var(--accent-2); font-size: 11px; letter-spacing: .3px; }
+.shop-body p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 3px 0 9px; flex: 1; }
 .buy-btn {
   appearance: none; border: none;
-  background: var(--accent); color: #1a1205;
-  border-radius: 9px; padding: 9px; font-weight: 700; font-size: 13px;
-  cursor: pointer;
+  background: var(--accent); color: #22120a;
+  border-radius: var(--r-sm); padding: 10px; font-weight: 700; font-size: 13px;
+  font-family: inherit; cursor: pointer;
 }
 .buy-btn.owned { background: var(--panel-2); color: var(--muted); }
-
-/* ---------- Paywall ---------- */
-.paywall { text-align: center; padding: 10px; }
-.paywall .onb-list { text-align: left; margin: 22px 0; }
-.paywall .btn.primary { margin-bottom: 6px; }
 
 /* ---------- Sheets ---------- */
 .sheet { position: absolute; inset: 0; display: none; z-index: 40; }
 .sheet.show { display: block; }
-.sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); }
 .sheet-panel {
   position: absolute; left: 0; right: 0; bottom: 0;
-  background: var(--panel);
-  border-top-left-radius: 18px; border-top-right-radius: 18px;
-  max-height: 72%;
+  background: var(--bg-2);
+  border-top-left-radius: 22px; border-top-right-radius: 22px;
+  border-top: 1px solid var(--line);
+  max-height: 74%;
   overflow-y: auto;
-  padding-bottom: 14px;
-  animation: slideUp .22s ease;
+  padding: 0 14px 18px;
+  animation: slideUp .24s cubic-bezier(.2,.8,.3,1);
 }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .sheet-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--panel);
+  padding: 16px 4px 12px;
 }
-.sheet-head h2 { font-size: 16px; margin: 0; }
-.picker-list { padding: 8px 10px; }
+.sheet-head h2 { font-size: 16px; margin: 0; font-weight: 700; }
+.picker-list { padding: 4px 0 8px; }
 .picker-item {
   display: flex; align-items: center; gap: 12px;
   width: 100%;
   appearance: none; border: 1px solid transparent;
   background: none; color: var(--text);
-  padding: 10px; border-radius: 12px; cursor: pointer;
+  font-family: inherit;
+  padding: 10px; border-radius: var(--r-md); cursor: pointer;
   text-align: left;
+  transition: background .15s ease, border-color .15s ease;
 }
-.picker-item.selected { border-color: var(--accent); background: rgba(255,122,24,.08); }
+.picker-item.selected { border-color: var(--accent); background: rgba(255,122,61,.08); }
 .swatch {
-  width: 44px; height: 44px; border-radius: 9px;
+  width: 46px; height: 46px; border-radius: var(--r-sm);
   background: linear-gradient(135deg, #7d8b9c, #d3c1a4);
   flex: none;
 }
 .pi-text { display: flex; flex-direction: column; flex: 1; }
 .pi-text strong { font-size: 14px; }
 .pi-text small { color: var(--accent-2); font-size: 11.5px; }
-.pi-state { font-size: 12px; color: var(--muted); }
-.pi-state.locked { color: var(--accent); font-weight: 700; }
+.pi-state { font-size: 12px; color: var(--muted); font-weight: 600; }
+.picker-item.selected .pi-state { color: var(--accent); }
 
 /* ---------- Viewer ---------- */
 .viewer {
@@ -417,50 +452,22 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   flex-direction: column;
   align-items: center; justify-content: center;
   gap: 18px;
-  background: rgba(0,0,0,.94);
-  padding: 20px;
+  background: rgba(0,0,0,.95);
+  padding: 22px;
 }
 .viewer.show { display: flex; }
-.viewer img { max-width: 92%; max-height: 72%; border-radius: 8px; }
+.viewer img { max-width: 92%; max-height: 72%; border-radius: 12px; }
 .viewer-actions { display: flex; gap: 10px; }
-
-/* ---------- Ads / interstitial ---------- */
-.ad-banner {
-  margin: 12px 16px 16px;
-  padding: 12px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-}
-.interstitial {
-  position: absolute; inset: 0; z-index: 60;
-  display: none;
-  align-items: center; justify-content: center;
-  background: rgba(0,0,0,.85);
-}
-.interstitial.show { display: flex; }
-.ad-card {
-  background: var(--panel-2);
-  border: 1px dashed var(--line);
-  border-radius: 14px;
-  padding: 34px 28px;
-  text-align: center;
-  color: var(--muted);
-  line-height: 1.6;
-}
 
 /* ---------- Toast ---------- */
 .toast {
   position: absolute;
-  left: 50%; bottom: 232px;
-  transform: translate(-50%, 20px);
-  background: rgba(30,30,34,.96);
+  left: 50%; top: 92px;
+  transform: translate(-50%, -14px);
+  background: rgba(28,28,34,.97);
   color: var(--text);
   border: 1px solid var(--line);
-  padding: 11px 16px;
+  padding: 11px 17px;
   border-radius: 999px;
   font-size: 13.5px;
   opacity: 0;
@@ -473,13 +480,6 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- Demo scene + flash ---------- */
-#demo-canvas {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: none;
-  transition: filter .25s ease;
-}
 #flash-overlay {
   position: absolute; inset: 0;
   background: #fff;
@@ -489,16 +489,16 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 }
 #flash-overlay.go { opacity: .85; }
 
-/* ---------- Double-exposure first-shot chip ---------- */
+/* ---------- Double-exposure chip ---------- */
 .double-chip {
   position: absolute;
-  right: 14px; top: 104px;
+  right: 16px; top: 106px;
   width: 66px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   display: none;
   border: 2px solid #fff;
-  box-shadow: 0 6px 18px rgba(0,0,0,.5);
+  box-shadow: 0 8px 22px rgba(0,0,0,.55);
 }
 .double-chip.show { display: block; }
 .double-chip img { width: 100%; display: block; }
@@ -508,13 +508,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   background: rgba(0,0,0,.62); color: #fff; padding: 2px 0;
 }
 
-/* ---------- Fallback + result tweaks ---------- */
-.cam-fallback .btn { width: 100%; max-width: 280px; }
-.result-cam { color: var(--accent-2); font-size: 13px; margin: -8px 0 0; letter-spacing: .5px; }
-#btn-before.on { background: var(--accent); color: #1a1205; border-color: transparent; }
-.topbar h1 small { color: var(--muted); font-weight: 500; font-size: 13px; }
-
-/* ---------- PRO mode (Blackmagic-inspired HUD) ---------- */
+/* ---------- Manual mode HUD ---------- */
 .pro-canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
@@ -527,69 +521,65 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   display: none;
   pointer-events: none;
   background:
-    repeating-linear-gradient(to right, rgba(255,255,255,.30) 0 1px, transparent 1px 33.3333%),
-    repeating-linear-gradient(to bottom, rgba(255,255,255,.30) 0 1px, transparent 1px 33.3333%);
+    repeating-linear-gradient(to right, rgba(255,255,255,.28) 0 1px, transparent 1px 33.3333%),
+    repeating-linear-gradient(to bottom, rgba(255,255,255,.28) 0 1px, transparent 1px 33.3333%);
 }
 .pro-hud { position: absolute; inset: 0; display: none; pointer-events: none; }
 .pro-hud.show {
   display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 0 12px 206px; gap: 8px;
+  padding: 0 16px 210px; gap: 8px;
 }
-
 .pro-hist {
-  position: absolute; top: 62px; right: 12px;
-  width: 160px; height: 56px;
-  border: 1px solid rgba(255,255,255,.22);
-  border-radius: 6px;
+  position: absolute; top: 66px; right: 16px;
+  width: 158px; height: 54px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: var(--r-sm);
 }
-
 .pro-level {
   position: absolute; top: 52%; left: 50%;
   transform: translate(-50%, -50%);
   display: flex; align-items: center; gap: 10px;
   color: #fff; font-size: 11px;
-  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+  text-shadow: 0 1px 5px rgba(0,0,0,.85);
 }
 .pro-level-track {
   position: relative;
-  width: 130px; height: 3px;
+  width: 128px; height: 3px;
   background: rgba(255,255,255,.35);
   border-radius: 2px;
 }
 .pro-level-bar {
   position: absolute; left: 0; top: -3px;
-  width: 130px; height: 9px;
+  width: 128px; height: 9px;
   border-radius: 3px;
   background: #e5e7eb;
   transform-origin: 50% 50%;
   transition: transform .1s linear, background .15s linear;
 }
-
 .pro-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .pro-toggles {
   display: flex; flex-wrap: wrap; gap: 6px;
-  max-width: 196px;
+  max-width: 190px;
   pointer-events: auto;
 }
 .pro-btn {
   appearance: none;
-  font-size: 11px; padding: 5px 10px;
+  font-family: inherit;
+  font-size: 11px; padding: 6px 11px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.25);
+  border: 1px solid rgba(255,255,255,.22);
   background: rgba(0,0,0,.5);
   color: #dcdcdc; cursor: pointer;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
 }
-.pro-btn.on { background: var(--accent); color: #1a1205; border-color: transparent; }
-
+.pro-btn.on { background: var(--accent); color: #22120a; border-color: transparent; }
 .pro-controls {
-  width: 178px;
-  flex: none;
+  width: 176px; flex: none;
   display: flex; flex-direction: column; gap: 7px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  background: rgba(0,0,0,.48);
-  backdrop-filter: blur(5px);
+  padding: 10px 11px;
+  border-radius: var(--r-md);
+  background: rgba(0,0,0,.5);
+  backdrop-filter: blur(8px);
   pointer-events: auto;
 }
 .pro-ctl { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 6px; }
@@ -597,12 +587,11 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .pro-ctl input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pro-ctl-val { grid-column: 1 / -1; font-size: 10px; color: #7dd3fc; text-align: right; }
 .pro-ctl.off { opacity: .45; }
-
 .pro-note {
   margin: 0;
-  font-size: 10px; line-height: 1.35;
+  font-size: 10px; line-height: 1.4;
   color: #9a978f; text-align: center;
-  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+  text-shadow: 0 1px 5px rgba(0,0,0,.85);
 }
 
 </style>
@@ -614,7 +603,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   <section class="screen" id="screen-splash">
     <div class="splash-inner">
       <div class="logo">FaceCam</div>
-      <div class="logo-sub">Purani film wali feel, ek click mein.</div>
+      <div class="logo-sub">Purani film, aur ek clean beauty shot.</div>
       <div class="film-strip"></div>
     </div>
   </section>
@@ -623,12 +612,12 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   <section class="screen" id="screen-onboarding">
     <div class="onb">
       <div class="logo small">FaceCam</div>
-      <p class="onb-lead">Ek point-and-shoot camera jo aapki normal photos ko purani film jaisa bana deta hai. Koi slider nahi — bas click.</p>
+      <p class="onb-lead">Vintage film cameras aur ek beauty camera &mdash; dono ek app mein. Koi slider nahi, bas click.</p>
       <ul class="onb-list">
         <li>13 vintage film cameras</li>
+        <li>4 beauty looks &mdash; clean, bright, warm, portrait</li>
         <li>Random grain, dust, light leaks, vignette</li>
-        <li>Double exposure aur instant &ldquo;developing&rdquo; wait</li>
-        <li>100% offline — sab kuch aapke device par</li>
+        <li>100% free, no ads, offline</li>
       </ul>
       <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
       <p class="fine">Camera permission chahiye. Koi data upload nahi hota.</p>
@@ -668,18 +657,20 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 
       <div id="cam-fallback" class="cam-fallback">
         <p id="fallback-text">Camera is device par available nahi hai.</p>
-        <p class="fine">Demo scene se poora film pipeline test karein, ya gallery se photo import karein.</p>
+        <p class="fine">Demo scene se poora pipeline test karein, ya gallery se photo import karein.</p>
         <button class="btn primary" id="fallback-demo">Demo scene try karein</button>
-        <button class="btn" id="fallback-pick">Photo import karein (PRO)</button>
+        <button class="btn" id="fallback-pick">Photo import karein</button>
       </div>
 
       <div id="countdown" class="countdown"></div>
 
       <div class="vf-top">
-        <div class="vf-title"><span id="cam-name">FaceCam 135 B</span><small id="cam-tag">35mm Classic</small></div>
+        <div class="vf-title">
+          <span id="cam-name">FaceCam 135 B</span>
+          <small id="cam-tag">35mm Classic</small>
+        </div>
         <div class="vf-top-actions">
-          <button class="icon-btn" id="btn-pro" title="Pro camera mode">M</button>
-          <button class="icon-btn" id="btn-paywall" title="PRO membership">PRO</button>
+          <button class="icon-btn" id="btn-pro" title="Manual camera mode">M</button>
           <button class="icon-btn" id="btn-settings" title="Settings">&#9881;</button>
         </div>
       </div>
@@ -688,7 +679,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
         <div class="vf-row small-row">
           <button class="icon-btn" id="btn-gallery" title="Gallery">&#9635;</button>
           <button class="icon-btn" id="btn-picker" title="Cameras">&#9788;</button>
-          <button class="icon-btn" id="btn-shop" title="Shop">&#128722;</button>
+          <button class="icon-btn" id="btn-cameras" title="All cameras">&#9638;</button>
         </div>
         <div class="vf-row main-row">
           <button class="icon-btn" id="btn-timer" title="Self-timer">&#8986;</button>
@@ -698,7 +689,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
           <button class="icon-btn" id="btn-switch" title="Flip camera">&#8646;</button>
         </div>
         <div class="vf-row import-row">
-          <button class="link-btn" id="btn-import">Import photo (PRO)</button>
+          <button class="link-btn" id="btn-import">Import a photo</button>
         </div>
       </div>
     </div>
@@ -723,7 +714,6 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
         <button class="btn" id="result-share">Share</button>
         <button class="btn" id="btn-before">Original</button>
       </div>
-      <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
     </div>
   </section>
 
@@ -738,7 +728,22 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div class="gallery-grid" id="gallery-grid"></div>
       <p id="gallery-empty" class="empty">Abhi koi photo nahi. Camera se pehli shot lein.</p>
     </div>
-    <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
+  </section>
+
+  <!-- Cameras browser -->
+  <section class="screen" id="screen-shop">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Cameras</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="tabs" id="shop-tabs">
+        <button class="tab" data-group="beauty">Beauty</button>
+        <button class="tab active" data-group="vintage">Vintage</button>
+      </div>
+      <div class="shop-grid" id="shop-grid"></div>
+    </div>
   </section>
 
   <!-- Settings -->
@@ -755,49 +760,9 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
         <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
         <label class="row"><span>FaceCam watermark</span><input type="checkbox" id="set-branding"></label>
         <label class="row"><span>Default camera</span><select id="set-default"></select></label>
-        <div class="row"><span>Plan</span><strong id="set-pro-state">Free plan</strong></div>
         <button class="link-btn" id="set-reset">Reset app data</button>
         <a class="link-btn" href="#" onclick="return false;">Privacy policy</a>
-        <p class="fine">Sab data sirf aapke device par rehta hai. Koi server, koi login nahi.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Shop -->
-  <section class="screen" id="screen-shop">
-    <div class="topbar">
-      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
-      <h1>Camera Shop</h1>
-      <span></span>
-    </div>
-    <div class="screen-body">
-      <div id="shop-pro-banner" class="pro-banner">
-        <span id="shop-pro-text">PRO unlock karein</span>
-        <span class="pro-cta">Get PRO</span>
-      </div>
-      <div class="shop-grid" id="shop-grid"></div>
-    </div>
-  </section>
-
-  <!-- Paywall -->
-  <section class="screen" id="screen-paywall">
-    <div class="topbar">
-      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
-      <h1>FaceCam PRO</h1>
-      <span></span>
-    </div>
-    <div class="screen-body">
-      <div class="paywall">
-        <div class="logo small">PRO</div>
-        <ul class="onb-list">
-          <li>Saare cameras, aane wale bhi</li>
-          <li>Gallery se photo import</li>
-          <li>Developing wait off</li>
-          <li>Ads hatayein</li>
-        </ul>
-        <button class="btn primary" id="paywall-buy">Unlock PRO &mdash; &#8377;199</button>
-        <button class="link-btn" id="paywall-restore">Restore purchases</button>
-        <p class="fine">Demo preview: yahan PRO local storage mein set hota hai.</p>
+        <p class="fine">Sab data sirf aapke device par rehta hai. Koi server, koi login, koi ads nahi.</p>
       </div>
     </div>
   </section>
@@ -809,6 +774,10 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div class="sheet-head">
         <h2>Cameras</h2>
         <button class="icon-btn" data-close-sheet="sheet-picker">&#10005;</button>
+      </div>
+      <div class="tabs" id="picker-tabs">
+        <button class="tab" data-group="beauty">Beauty</button>
+        <button class="tab active" data-group="vintage">Vintage</button>
       </div>
       <div class="picker-list" id="picker-list"></div>
     </div>
@@ -824,33 +793,60 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
     </div>
   </div>
 
-  <!-- Simulated interstitial -->
-  <div id="interstitial" class="interstitial">
-    <div class="ad-card">Ad &mdash; interstitial (placeholder)<br><small>PRO le kar ads hatayein</small></div>
-  </div>
-
   <div id="toast" class="toast"></div>
   <input type="file" id="import-input" accept="image/*" hidden>
 </div>
 
 <script>
-/* FaceCam — film simulation presets.
+/* FaceCam — camera presets.
  *
- * `filter`   CSS filter string — used for the live viewfinder preview and as the
- *            base colour curve at capture time.
- * `tone`     per-channel film tone curve applied per pixel (the realistic part):
- *              lift  -0.1..0.12  raises/lowers the black point (faded vs deep blacks)
- *              gamma  0.8..1.25  mid-tone contrast
- *              gain   0.9..1.1   overall brightness
- *              warmth -0.15..0.15 red/blue split (positive = warmer)
- *              sat    0.8..1.4   saturation
- * `halation` 0..1  glow that bleeds around bright highlights (very filmic)
- * `chroma`   0..1  colour noise, on top of the luminance grain
- * `grain` `dust` `vignette` `leak`  0..1  the randomised analog effects
+ * Two families:
+ *   group: 'vintage'  the 13 film simulations — grain, leaks, vignette, frames
+ *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural
+ *
+ * Vintage presets use: filter, tone, halation, chroma, grain, dust, vignette,
+ *                      leak, frame, dateStamp
+ * Beauty presets use:  filter, beauty { exposure, contrast, sat, warmth,
+ *                      smooth, sharpen, glow }
  */
 const CAMERAS = [
+  /* ------------------------------------------------------------------ *
+   * BEAUTY — clean, natural, iPhone-like
+   * ------------------------------------------------------------------ */
   {
-    id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic',
+    id: 'beauty_natural', name: 'Natural', tag: 'Clean & true', group: 'beauty',
+    desc: 'Balanced, true-to-life enhance. Soft skin, crisp detail, no colour shift.',
+    filter: 'contrast(1.04) saturate(1.06) brightness(1.04)',
+    beauty: { exposure: 0.030, contrast: 1.06, sat: 1.06, warmth: 0.015, smooth: 0.45, sharpen: 0.55, glow: 0.22 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_bright', name: 'Bright', tag: 'Airy daylight', group: 'beauty',
+    desc: 'Lifted, airy exposure with soft highlights. Great indoors and in shade.',
+    filter: 'contrast(1.02) saturate(1.04) brightness(1.10)',
+    beauty: { exposure: 0.075, contrast: 1.03, sat: 1.04, warmth: 0.005, smooth: 0.55, sharpen: 0.45, glow: 0.40 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_warm', name: 'Warm', tag: 'Golden skin', group: 'beauty',
+    desc: 'Golden, flattering warmth tuned for skin tones.',
+    filter: 'sepia(0.10) saturate(1.12) brightness(1.05)',
+    beauty: { exposure: 0.040, contrast: 1.07, sat: 1.14, warmth: 0.075, smooth: 0.50, sharpen: 0.50, glow: 0.30 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_portrait', name: 'Portrait', tag: 'Soft & focused', group: 'beauty',
+    desc: 'Stronger smoothing with crisp centre detail — a portrait-mode feel.',
+    filter: 'contrast(1.08) saturate(1.05) brightness(1.04)',
+    beauty: { exposure: 0.035, contrast: 1.09, sat: 1.05, warmth: 0.030, smooth: 0.72, sharpen: 0.75, glow: 0.34 },
+    paid: false, price: 0
+  },
+
+  /* ------------------------------------------------------------------ *
+   * VINTAGE — the 13 film simulations
+   * ------------------------------------------------------------------ */
+  {
+    id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic', group: 'vintage',
     desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
     filter: 'contrast(1.06) saturate(1.08) sepia(0.10) brightness(1.02)',
     tone: { lift: 0.015, gamma: 1.02, gain: 1.02, warmth: 0.035, sat: 1.08 },
@@ -861,7 +857,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody',
+    id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody', group: 'vintage',
     desc: 'Cool, contrasty, monochrome-leaning look with deep shadows.',
     filter: 'contrast(1.18) saturate(0.72) brightness(0.98) hue-rotate(-8deg)',
     tone: { lift: -0.035, gamma: 1.14, gain: 0.99, warmth: -0.05, sat: 0.82 },
@@ -872,7 +868,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy',
+    id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy', group: 'vintage',
     desc: 'Vivid, high-saturation film. Great for double exposures.',
     filter: 'contrast(1.12) saturate(1.35) brightness(1.03)',
     tone: { lift: 0.005, gamma: 1.06, gain: 1.02, warmth: 0.02, sat: 1.32 },
@@ -883,7 +879,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera',
+    id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera', group: 'vintage',
     desc: 'Cheap plastic-lens toy look. Heavy vignette, punchy colours.',
     filter: 'contrast(1.35) saturate(1.6) brightness(1.05)',
     tone: { lift: -0.01, gamma: 1.18, gain: 1.03, warmth: 0.05, sat: 1.55 },
@@ -894,7 +890,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera',
+    id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera', group: 'vintage',
     desc: 'Softer toy rendering with a cyan shift and strong falloff.',
     filter: 'contrast(1.22) saturate(1.3) hue-rotate(12deg) brightness(1.04)',
     tone: { lift: -0.005, gamma: 1.12, gain: 1.03, warmth: -0.04, sat: 1.28 },
@@ -905,7 +901,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer',
+    id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer', group: 'vintage',
     desc: 'Golden Mediterranean warmth. Faded blacks, sun-bleached colour.',
     filter: 'sepia(0.35) saturate(1.15) contrast(0.95) brightness(1.06)',
     tone: { lift: 0.055, gamma: 0.97, gain: 1.05, warmth: 0.09, sat: 1.10 },
@@ -916,7 +912,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave',
+    id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave', group: 'vintage',
     desc: 'Cinematic teal-and-orange with gentle halation.',
     filter: 'contrast(1.14) saturate(1.05) hue-rotate(-14deg) brightness(0.99)',
     tone: { lift: 0.02, gamma: 1.08, gain: 1.00, warmth: 0.045, sat: 1.02 },
@@ -924,10 +920,10 @@ const CAMERAS = [
     grain: 0.36, dust: 0.18, vignette: 0.40, leak: 0.28,
     leakColors: ['#ff8a5c', '#ffd08a'],
     frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
-    paid: true, price: 99
+    paid: false, price: 0
   },
   {
-    id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia',
+    id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia', group: 'vintage',
     desc: 'Early-2000s compact camera: harsh flash, oversharpened, magenta.',
     filter: 'contrast(1.25) saturate(1.25) hue-rotate(6deg) brightness(1.05)',
     tone: { lift: -0.02, gamma: 1.10, gain: 1.05, warmth: 0.055, sat: 1.22 },
@@ -938,7 +934,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera',
+    id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera', group: 'vintage',
     desc: 'Tuned for food: warm, appetising, boosted mid-tones.',
     filter: 'contrast(1.10) saturate(1.45) sepia(0.12) brightness(1.08)',
     tone: { lift: 0.02, gamma: 0.98, gain: 1.07, warmth: 0.075, sat: 1.40 },
@@ -946,10 +942,10 @@ const CAMERAS = [
     grain: 0.22, dust: 0.12, vignette: 0.26, leak: 0.30,
     leakColors: ['#ffcf5c', '#ff9f43'],
     frame: { style: 'thin', color: '#fff6e6' }, dateStamp: false,
-    paid: true, price: 99
+    paid: false, price: 0
   },
   {
-    id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid',
+    id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid', group: 'vintage',
     desc: 'Instant film with a thick white border and a developing wait.',
     filter: 'contrast(0.94) saturate(0.92) sepia(0.20) brightness(1.10)',
     tone: { lift: 0.075, gamma: 0.92, gain: 1.08, warmth: 0.05, sat: 0.95 },
@@ -961,7 +957,7 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh',
+    id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh', group: 'vintage',
     desc: 'Petzval-style swirl. Soft corners, dreamy centre.',
     filter: 'contrast(1.05) saturate(1.10) blur(0.4px) brightness(1.04)',
     tone: { lift: 0.03, gamma: 1.00, gain: 1.04, warmth: 0.02, sat: 1.10 },
@@ -969,10 +965,10 @@ const CAMERAS = [
     grain: 0.30, dust: 0.16, vignette: 0.62, leak: 0.34,
     leakColors: ['#c9a7ff', '#7fd8ff'],
     frame: { style: 'thin', color: '#f2ecff' }, dateStamp: false,
-    paid: true, price: 149
+    paid: false, price: 0
   },
   {
-    id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7',
+    id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7', group: 'vintage',
     desc: 'Medium-format rangefinder. Rich, dense, professional colour.',
     filter: 'contrast(1.16) saturate(1.12) brightness(0.99) sepia(0.06)',
     tone: { lift: -0.025, gamma: 1.10, gain: 1.01, warmth: 0.03, sat: 1.12 },
@@ -980,10 +976,10 @@ const CAMERAS = [
     grain: 0.26, dust: 0.14, vignette: 0.30, leak: 0.18,
     leakColors: ['#ffc9a0', '#ff8f6b'],
     frame: { style: 'cinema', color: '#141414' }, dateStamp: true,
-    paid: true, price: 199
+    paid: false, price: 0
   },
   {
-    id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide',
+    id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide', group: 'vintage',
     desc: 'Wide-lens look with lifted blacks and a cool cast.',
     filter: 'contrast(1.08) saturate(0.95) hue-rotate(-6deg) brightness(1.02)',
     tone: { lift: 0.04, gamma: 1.04, gain: 1.02, warmth: -0.045, sat: 0.98 },
@@ -1341,6 +1337,92 @@ const Effects = (() => {
     return out;
   }
 
+  /* ---------- beauty (iPhone-like enhance) ---------- */
+  function blurCopy(src, px) {
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.filter = 'blur(' + px + 'px)';
+    x.drawImage(src, 0, 0);
+    x.filter = 'none';
+    return c;
+  }
+
+  /* Clean, natural, phone-camera enhance: exposure + gentle S-curve + natural
+     saturation, edge-aware skin smoothing, soft highlight glow, and unsharp
+     sharpening. No grain, no leaks, no vignette, no frame. */
+  function applyBeauty(canvas, b) {
+    b = b || {};
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const w = canvas.width, h = canvas.height;
+    const min = Math.min(w, h);
+
+    applyTone(canvas, {
+      lift: b.exposure || 0,
+      gamma: b.contrast || 1,
+      gain: 1,
+      warmth: b.warmth || 0,
+      sat: b.sat == null ? 1 : b.sat
+    });
+
+    const smooth = b.smooth || 0;
+    if (smooth > 0) {
+      const blurred = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
+      const img = ctx.getImageData(0, 0, w, h);
+      const od = img.data;
+      const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
+      const thr = 24;
+      for (let i = 0; i < od.length; i += 4) {
+        const dr = Math.abs(od[i] - bd[i]);
+        const dg = Math.abs(od[i + 1] - bd[i + 1]);
+        const db = Math.abs(od[i + 2] - bd[i + 2]);
+        const detail = (dr + dg + db) / 3;
+        let k = 1 - detail / thr;
+        if (k < 0) k = 0;
+        k *= smooth;
+        if (k > 0) {
+          od[i] += (bd[i] - od[i]) * k;
+          od[i + 1] += (bd[i + 1] - od[i + 1]) * k;
+          od[i + 2] += (bd[i + 2] - od[i + 2]) * k;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    const glow = b.glow || 0;
+    if (glow > 0) {
+      const t = document.createElement('canvas');
+      t.width = w; t.height = h;
+      const tc = t.getContext('2d');
+      tc.filter = 'brightness(1.4) contrast(2.0) blur(' + Math.max(2, Math.round(min * 0.010)) + 'px)';
+      tc.drawImage(canvas, 0, 0);
+      tc.filter = 'none';
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = Math.min(0.4, glow * 0.32);
+      ctx.drawImage(t, 0, 0);
+      ctx.restore();
+    }
+
+    const sharpen = b.sharpen || 0;
+    if (sharpen > 0) {
+      const blurred = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
+      const img = ctx.getImageData(0, 0, w, h);
+      const od = img.data;
+      const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
+      for (let i = 0; i < od.length; i += 4) {
+        const r = od[i] + (od[i] - bd[i]) * sharpen;
+        const g = od[i + 1] + (od[i + 1] - bd[i + 1]) * sharpen;
+        const bl = od[i + 2] + (od[i + 2] - bd[i + 2]) * sharpen;
+        od[i] = r < 0 ? 0 : r > 255 ? 255 : r;
+        od[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        od[i + 2] = bl < 0 ? 0 : bl > 255 ? 255 : bl;
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+    return canvas;
+  }
+
   /* ---------- double exposure ---------- */
   function blend(a, b) {
     const ctx = a.getContext('2d');
@@ -1358,7 +1440,7 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, withBranding, blend, rand, pick };
+  return { capture, process, withBranding, applyBeauty, blend, rand, pick };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }
@@ -1635,19 +1717,22 @@ const Pro = (() => {
 <script>
 /* FaceCam — web preview app (HTML / CSS / JavaScript).
  *
- * Mirrors the Android app's feature set and is fully self-contained: no build
- * step, no dependencies, no network calls.
+ * Fully free: every camera is unlocked, there is no paywall and there are no
+ * ads. Everything runs on-device with no network calls.
  *
- *   localStorage  -> settings, owned cameras, PRO flag, save counter
- *   IndexedDB     -> captured photos
- *   getUserMedia  -> live viewfinder   (falls back to a built-in demo scene)
- *   <canvas>      -> the whole film pipeline
+ *   localStorage  -> settings, save counter, seen flag
+ *   IndexedDB     -> captured photos (with an in-memory write-through copy)
+ *   getUserMedia  -> live viewfinder  (falls back to a built-in demo scene)
+ *   <canvas>      -> the film + beauty pipelines
+ *
+ * Two camera families: 'vintage' (film simulations) and 'beauty' (clean,
+ * iPhone-like enhance).
  */
 (function () {
   'use strict';
 
   /* ------------------------------------------------------------------ *
-   * Local storage (settings / ownership / PRO)
+   * Local storage
    * ------------------------------------------------------------------ */
   const LS = {
     get(key, fallback) {
@@ -1661,20 +1746,7 @@ const Pro = (() => {
     }
   };
 
-  const FREE_IDS = CAMERAS.filter(c => !c.paid).map(c => c.id);
-
   const store = {
-    owned() {
-      const o = LS.get('owned', null);
-      return o === null ? FREE_IDS.slice() : o;
-    },
-    owns(id) { return this.owned().indexOf(id) !== -1; },
-    grant(id) {
-      const o = this.owned();
-      if (o.indexOf(id) === -1) { o.push(id); LS.set('owned', o); }
-    },
-    isPro() { return LS.get('pro', false); },
-    setPro(v) { LS.set('pro', !!v); },
     settings() {
       return LS.get('settings', {
         dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b'
@@ -1686,32 +1758,26 @@ const Pro = (() => {
     seen() { return LS.get('seen', false); },
     markSeen() { LS.set('seen', true); },
     reset() {
-      ['owned', 'pro', 'settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
+      ['settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
     }
   };
 
   /* ------------------------------------------------------------------ *
-   * IndexedDB photo store
+   * Photo store — write-through so the gallery is always instant
    * ------------------------------------------------------------------ */
   const Photos = {
     db: null,
     mem: [],
     nextId: 1,
-    useMem: false,
 
-    /* Opens IndexedDB, but never blocks or hangs the UI: if the database is
-       unavailable (private mode, blocked storage, old browser) we silently
-       fall back to an in-memory store so the gallery still works. */
     open() {
       return new Promise((resolve) => {
-        if (!window.indexedDB) { this.useMem = true; resolve(null); return; }
+        if (!window.indexedDB) { resolve(null); return; }
         let settled = false;
-        const giveUp = setTimeout(() => {
-          if (!settled) { settled = true; this.useMem = true; resolve(null); }
-        }, 4000);
+        const giveUp = setTimeout(() => { if (!settled) { settled = true; resolve(null); } }, 4000);
         let req;
         try { req = indexedDB.open('facecam', 1); }
-        catch (e) { clearTimeout(giveUp); this.useMem = true; resolve(null); return; }
+        catch (e) { clearTimeout(giveUp); resolve(null); return; }
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains('photos')) {
@@ -1723,25 +1789,16 @@ const Pro = (() => {
           clearTimeout(giveUp);
           if (!settled) { settled = true; resolve(this.db); }
         };
-        req.onerror = () => {
-          clearTimeout(giveUp);
-          this.useMem = true;
-          if (!settled) { settled = true; resolve(null); }
-        };
+        req.onerror = () => { clearTimeout(giveUp); if (!settled) { settled = true; resolve(null); } };
       });
     },
 
-    /* Write-through: every photo is kept in memory straight away (so the
-       gallery is instant and never blocks), and mirrored into IndexedDB for
-       persistence across reloads. If IndexedDB misbehaves, the session still
-       works — only cross-reload persistence is lost. */
     add(photo) {
       const rec = Object.assign({}, photo, { id: this.nextId++ });
       this.mem.push(rec);
       if (this.db) {
-        try {
-          this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo);
-        } catch (e) { /* ignore — memory copy already holds it */ }
+        try { this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo); }
+        catch (e) { /* memory copy already holds it */ }
       }
       return Promise.resolve(rec.id);
     },
@@ -1776,7 +1833,7 @@ const Pro = (() => {
   };
 
   /* ------------------------------------------------------------------ *
-   * App state + small helpers
+   * State + helpers
    * ------------------------------------------------------------------ */
   const state = {
     cameraId: 'nomo_135_b',
@@ -1800,7 +1857,7 @@ const Pro = (() => {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
   const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
-  const rupee = (n) => '\u20B9' + n;
+  const groupOf = (cam) => (cam && cam.group) || 'vintage';
 
   function withTimeout(promise, ms) {
     return new Promise((resolve, reject) => {
@@ -1831,8 +1888,7 @@ const Pro = (() => {
   }
 
   /* ------------------------------------------------------------------ *
-   * Built-in demo scene (used when no camera is available, so the whole
-   * pipeline — shutter, film effects, save, gallery — still works)
+   * Built-in demo scene
    * ------------------------------------------------------------------ */
   function drawSampleScene(canvas) {
     canvas.width = 540; canvas.height = 960;
@@ -1875,7 +1931,7 @@ const Pro = (() => {
    * Camera
    * ------------------------------------------------------------------ */
   async function startCamera() {
-    const gen = ++state.camGen;   // invalidates any earlier in-flight attempt
+    const gen = ++state.camGen;
     stopCamera();
     state.demo = false;
     $('#demo-canvas').style.display = 'none';
@@ -1903,7 +1959,7 @@ const Pro = (() => {
       applyTorch();
       if (typeof Pro !== 'undefined' && Pro.refresh) Pro.refresh();
     } catch (e) {
-      if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
+      if (gen !== state.camGen || state.demo) return;
       let why = 'Camera is device par available nahi hai.';
       if (e && e.name === 'NotAllowedError') why = 'Camera permission deny ho gayi.';
       else if (e && e.name === 'NotFoundError') why = 'Koi camera nahi mila.';
@@ -1926,8 +1982,6 @@ const Pro = (() => {
     state.torchAvailable = false;
   }
 
-  /* Real torch if the device exposes it, otherwise we fall back to a
-     screen-flash at capture time. */
   async function applyTorch() {
     if (!state.stream) return;
     const track = state.stream.getVideoTracks()[0];
@@ -1944,7 +1998,7 @@ const Pro = (() => {
   }
 
   function startDemo() {
-    state.camGen++;   // cancel any pending camera attempt so it can't clobber this
+    state.camGen++;
     const cv = $('#demo-canvas');
     if (!cv.dataset.drawn) { drawSampleScene(cv); cv.dataset.drawn = '1'; }
     cv.style.display = 'block';
@@ -1960,10 +2014,12 @@ const Pro = (() => {
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    $('#live-vignette').style.opacity = Math.min(0.85, cam.vignette * 0.8).toFixed(2);
+    const vintage = groupOf(cam) === 'vintage';
+    $('#live-vignette').style.opacity = vintage
+      ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const frameEl = $('#live-frame');
-    frameEl.className = 'live-frame ' + (cam.frame ? cam.frame.style : '');
-    frameEl.style.setProperty('--frame-color', cam.frame ? cam.frame.color : '#fff');
+    frameEl.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
+    frameEl.style.setProperty('--frame-color', (vintage && cam.frame) ? cam.frame.color : 'transparent');
     $('#cam-name').textContent = cam.name;
     $('#cam-tag').textContent = cam.tag;
   }
@@ -1978,12 +2034,22 @@ const Pro = (() => {
     const source = state.demo ? state.demoSource : $('#video');
     let w = source.videoWidth || source.width || 1080;
     let h = source.videoHeight || source.height || 1440;
-    const maxDim = 1400;
+    const maxDim = 1300;
     if (Math.max(w, h) > maxDim) {
       const s = maxDim / Math.max(w, h);
       w = Math.round(w * s); h = Math.round(h * s);
     }
     return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
+  }
+
+  /* One place that decides which pipeline a shot goes through. */
+  function developShot(canvas, cam, settings) {
+    if (groupOf(cam) === 'beauty') {
+      Effects.applyBeauty(canvas, cam.beauty);
+      return canvas;                       // clean photo: no frame, no band
+    }
+    Effects.process(canvas, cam, settings);
+    return Effects.withBranding(canvas, cam, settings);
   }
 
   function screenFlash() {
@@ -2052,18 +2118,16 @@ const Pro = (() => {
   }
 
   function afterCapture(cam, canvas) {
-    if (cam.instant && !store.isPro()) {
+    if (cam.instant) {
       const developed = canvas.cloneNode(false);
       developed.width = canvas.width; developed.height = canvas.height;
       developed.getContext('2d').drawImage(canvas, 0, 0);
-      Effects.process(developed, cam, store.settings());
-      const devOut = Effects.withBranding(developed, cam, store.settings());
-      state.lastPhoto = { dataUrl: devOut.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       runDeveloping();
     } else {
-      Effects.process(canvas, cam, store.settings());
-      const branded = Effects.withBranding(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       if (store.settings().sound) beep();
       openResult();
     }
@@ -2094,7 +2158,7 @@ const Pro = (() => {
     if (!state.lastPhoto) return;
     state.showingOriginal = !state.showingOriginal;
     $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.lastPhoto.dataUrl;
-    $('#btn-before').textContent = state.showingOriginal ? 'Film' : 'Original';
+    $('#btn-before').textContent = state.showingOriginal ? 'Edited' : 'Original';
     $('#btn-before').classList.toggle('on', state.showingOriginal);
   }
 
@@ -2127,9 +2191,8 @@ const Pro = (() => {
       });
     } catch (e) { /* storage unavailable — still deliver the file */ }
     download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
-    const n = store.bumpSaves();
+    store.bumpSaves();
     toast('Gallery mein save ho gaya');
-    if (!store.isPro() && n % 3 === 0) showInterstitial();
   }
 
   function download(dataUrl, name) {
@@ -2153,12 +2216,6 @@ const Pro = (() => {
     } catch (e) {}
     download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
     toast('Share support nahi — photo download ho gayi');
-  }
-
-  function showInterstitial() {
-    const ad = $('#interstitial');
-    ad.classList.add('show');
-    setTimeout(() => ad.classList.remove('show'), 2500);
   }
 
   /* ------------------------------------------------------------------ *
@@ -2203,8 +2260,6 @@ const Pro = (() => {
     }
   }
 
-  /* Paint instantly from the in-memory copy so the gallery never waits on
-     storage, then refresh once the database answers. */
   function renderGallery() {
     paintGallery(Photos.mem.slice());
     Photos.all().then(list => paintGallery(list)).catch(() => {});
@@ -2233,58 +2288,59 @@ const Pro = (() => {
   }
 
   /* ------------------------------------------------------------------ *
-   * Camera picker + shop
+   * Camera picker + cameras browser (all free, grouped by family)
    * ------------------------------------------------------------------ */
-  function renderPicker() {
+  function tabGroup(rootSel) {
+    const active = $(rootSel + ' .tab.active');
+    return active ? active.getAttribute('data-group') : 'vintage';
+  }
+
+  function setTab(rootSel, group) {
+    $$(rootSel + ' .tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-group') === group));
+  }
+
+  function renderPicker(group) {
+    group = group || tabGroup('#picker-tabs');
     const wrap = $('#picker-list');
     wrap.innerHTML = '';
-    CAMERAS.forEach(cam => {
-      const owned = store.owns(cam.id) || store.isPro();
+    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
       const item = document.createElement('button');
       item.className = 'picker-item' + (cam.id === state.cameraId ? ' selected' : '');
       item.innerHTML =
         '<span class="swatch" style="filter:' + cam.filter + '"></span>' +
         '<span class="pi-text"><strong>' + cam.name + '</strong><small>' + cam.tag + '</small></span>' +
-        (owned ? '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Owned') + '</span>'
-               : '<span class="pi-state locked">' + rupee(cam.price) + '</span>');
+        '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Use') + '</span>';
       item.addEventListener('click', () => {
-        if (!owned) { toast('Pehle ise shop se unlock karein'); closeSheet('#sheet-picker'); openShop(); return; }
         selectCamera(cam.id);
         closeSheet('#sheet-picker');
+        toast(cam.name + ' selected');
       });
       wrap.appendChild(item);
     });
   }
 
-  function renderShop() {
+  function renderCameras(group) {
+    group = group || tabGroup('#shop-tabs');
     const grid = $('#shop-grid');
     grid.innerHTML = '';
-    CAMERAS.forEach(cam => {
-      const owned = store.owns(cam.id) || store.isPro();
+    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
       const card = document.createElement('div');
-      card.className = 'shop-card';
+      card.className = 'shop-card' + (cam.id === state.cameraId ? ' active' : '');
       card.innerHTML =
         '<div class="shop-preview" style="filter:' + cam.filter + '">' +
         '<div class="sp-vig"></div></div>' +
         '<div class="shop-body"><strong>' + cam.name + '</strong>' +
         '<small>' + cam.tag + '</small>' +
         '<p>' + cam.desc + '</p>' +
-        '<button class="buy-btn ' + (owned ? 'owned' : '') + '">' +
-        (owned ? 'Owned' : (cam.paid ? rupee(cam.price) : 'Free')) + '</button></div>';
-      const btn = card.querySelector('.buy-btn');
-      btn.addEventListener('click', () => {
-        if (owned) { selectCamera(cam.id); show('screen-viewfinder'); return; }
-        if (cam.paid && !store.isPro()) { openPaywall(); return; }
-        store.grant(cam.id);
-        renderShop(); renderPicker();
-        toast(cam.name + ' unlocked');
+        '<button class="buy-btn ' + (cam.id === state.cameraId ? 'owned' : '') + '">' +
+        (cam.id === state.cameraId ? 'In use' : 'Use') + '</button></div>';
+      card.querySelector('.buy-btn').addEventListener('click', () => {
+        selectCamera(cam.id);
+        renderCameras(group);
+        toast(cam.name + ' selected');
       });
       grid.appendChild(card);
     });
-    $('#shop-pro-banner').classList.toggle('pro', store.isPro());
-    $('#shop-pro-text').textContent = store.isPro()
-      ? 'PRO active — saare cameras aur tools unlocked.'
-      : 'PRO unlock karein — saare cameras + import + no ads.';
   }
 
   function selectCamera(id) {
@@ -2295,8 +2351,12 @@ const Pro = (() => {
     applyLiveLook();
   }
 
-  function openShop() { renderShop(); show('screen-shop'); }
-  function openPaywall() { show('screen-paywall'); }
+  function openCameras() {
+    setTab('#shop-tabs', groupOf(cameraById(state.cameraId)));
+    renderCameras();
+    show('screen-shop');
+  }
+
   function closeSheet(sel) { const el = $(sel); if (el) el.classList.remove('show'); }
   function openSheet(sel) { const el = $(sel); if (el) el.classList.add('show'); }
 
@@ -2311,39 +2371,37 @@ const Pro = (() => {
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    CAMERAS.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id; opt.textContent = c.name;
-      if (c.id === s.defaultCamera) opt.selected = true;
-      sel.appendChild(opt);
+    ['beauty', 'vintage'].forEach(g => {
+      const og = document.createElement('optgroup');
+      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
+      CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name;
+        if (c.id === s.defaultCamera) opt.selected = true;
+        og.appendChild(opt);
+      });
+      sel.appendChild(og);
     });
-    $('#set-pro-state').textContent = store.isPro() ? 'PRO active' : 'Free plan';
   }
 
   /* ------------------------------------------------------------------ *
-   * Import (PRO)
+   * Import — free for everyone
    * ------------------------------------------------------------------ */
   function importPhoto(file) {
     const img = new Image();
     img.onload = () => {
       const cam = cameraById(state.cameraId);
       let w = img.naturalWidth, h = img.naturalHeight;
-      const maxDim = 1400;
+      const maxDim = 1300;
       if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
       const canvas = Effects.capture(img, w, h, cam.filter);
       state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
-      Effects.process(canvas, cam, store.settings());
-      const branded = Effects.withBranding(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const out = developShot(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       openResult();
     };
     img.onerror = () => toast('Ye image load nahi ho payi');
     img.src = URL.createObjectURL(file);
-  }
-
-  function requestImport() {
-    if (!store.isPro()) { openPaywall(); toast('Import PRO feature hai'); return; }
-    $('#import-input').click();
   }
 
   /* ------------------------------------------------------------------ *
@@ -2390,44 +2448,43 @@ const Pro = (() => {
       toast(state.double ? 'Double exposure ON — 2 shots lein' : 'Double exposure off');
     });
 
-    $('#btn-picker').addEventListener('click', () => { renderPicker(); openSheet('#sheet-picker'); });
-    $('#btn-shop').addEventListener('click', openShop);
-    /* Navigate immediately, then fill the grid — never block the UI on storage. */
+    $('#btn-picker').addEventListener('click', () => {
+      setTab('#picker-tabs', groupOf(cameraById(state.cameraId)));
+      renderPicker();
+      openSheet('#sheet-picker');
+    });
+    $('#btn-cameras').addEventListener('click', openCameras);
     $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
     $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
-    $('#btn-paywall').addEventListener('click', openPaywall);
+    $('#btn-import').addEventListener('click', () => $('#import-input').click());
     $('#btn-pro').addEventListener('click', () => {
       const on = !Pro.isEnabled();
       Pro.setEnabled(on);
       $('#btn-pro').classList.toggle('on', on);
-      toast(on ? 'PRO mode on — scopes live' : 'PRO mode off');
+      toast(on ? 'Manual mode on — scopes live' : 'Manual mode off');
     });
-    $('#shop-pro-banner').addEventListener('click', openPaywall);
-    $('#btn-import').addEventListener('click', requestImport);
 
     $$('[data-back]').forEach(b => b.addEventListener('click', () => {
-      const target = b.getAttribute('data-back');
-      show('screen-' + target);
-      if (target === 'viewfinder') { applyLiveLook(); }
+      show('screen-' + b.getAttribute('data-back'));
+      applyLiveLook();
     }));
 
     $$('[data-close-sheet]').forEach(b => b.addEventListener('click', () => closeSheet('#' + b.getAttribute('data-close-sheet'))));
     $$('.sheet-backdrop').forEach(b => b.addEventListener('click', () => b.parentElement.classList.remove('show')));
 
+    $$('#picker-tabs .tab').forEach(t => t.addEventListener('click', () => {
+      setTab('#picker-tabs', t.getAttribute('data-group'));
+      renderPicker(t.getAttribute('data-group'));
+    }));
+    $$('#shop-tabs .tab').forEach(t => t.addEventListener('click', () => {
+      setTab('#shop-tabs', t.getAttribute('data-group'));
+      renderCameras(t.getAttribute('data-group'));
+    }));
+
     $('#result-retake').addEventListener('click', () => { show('screen-viewfinder'); applyLiveLook(); });
     $('#result-save').addEventListener('click', savePhoto);
     $('#result-share').addEventListener('click', sharePhoto);
     $('#btn-before').addEventListener('click', toggleBefore);
-
-    $('#paywall-buy').addEventListener('click', () => {
-      store.setPro(true);
-      renderSettings(); renderShop(); renderPicker();
-      toast('PRO unlocked — sab kuch khul gaya');
-      show('screen-viewfinder');
-    });
-    $('#paywall-restore').addEventListener('click', () => {
-      toast(store.isPro() ? 'PRO restore ho gaya' : 'Koi purchase nahi mili');
-    });
 
     $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
     $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
@@ -2435,8 +2492,8 @@ const Pro = (() => {
     $('#set-branding').addEventListener('change', e => { const s = store.settings(); s.branding = e.target.checked; store.saveSettings(s); });
     $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
     $('#set-reset').addEventListener('click', () => {
-      if (confirm('App reset karein? Saari settings aur unlocks hat jayenge.')) {
-        store.reset(); renderSettings(); renderPicker(); renderShop(); toast('Reset ho gaya');
+      if (confirm('App reset karein? Saari settings hat jayengi.')) {
+        store.reset(); renderSettings(); toast('Reset ho gaya');
       }
     });
 
@@ -2447,7 +2504,7 @@ const Pro = (() => {
     });
 
     $('#fallback-demo').addEventListener('click', startDemo);
-    $('#fallback-pick').addEventListener('click', requestImport);
+    $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';

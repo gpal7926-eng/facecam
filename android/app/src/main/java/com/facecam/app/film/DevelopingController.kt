@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Controls the "developing" wait animation shown for instant cameras.
  *
- * Instant cameras need a few seconds to "develop" the print. PRO members can
- * skip the wait entirely; the delay is otherwise purely cosmetic.
+ * Instant cameras need a few seconds to "develop" the print. The delay is
+ * purely cosmetic.
  */
 class DevelopingController {
 

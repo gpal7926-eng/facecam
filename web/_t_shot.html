@@ -213,5 +213,32 @@
 <script src="js/effects.js"></script>
 <script src="js/pro.js"></script>
 <script src="js/app.js"></script>
+<script>
+(function(){
+  var a=(location.hash||'').replace('#','')||'vf';
+  var cams={beauty:'beauty_portrait', vf:'roma', rvintage:'roma', manual:'roma',
+            picker:'roma', cameras:'roma', settings:'roma', onb:'roma', rbeauty:'beauty_bright'};
+  try{
+    if(a==='onb'){ ['seen','settings','saves'].forEach(function(k){localStorage.removeItem('facecam.'+k);}); }
+    else{
+      localStorage.setItem('facecam.seen','true');
+      localStorage.setItem('facecam.settings', JSON.stringify({dateStamp:true,border:true,sound:false,branding:true,defaultCamera:cams[a]||'roma'}));
+    }
+  }catch(e){}
+  function C(id){var b=document.getElementById(id); if(b)b.click();}
+  function T(k){var b=document.querySelector('[data-pro-toggle="'+k+'"]'); if(b)b.click();}
+  window.addEventListener('load',function(){
+    function at(ms,fn){setTimeout(fn,ms);}
+    if(a==='onb') return;
+    at(2000,function(){ C('btn-onboard'); });
+    at(2450,function(){ C('fallback-demo'); });
+    if(a==='picker'){ at(2900,function(){ C('btn-picker'); var t=document.querySelector('#picker-tabs .tab[data-group="beauty"]'); if(t)t.click(); }); }
+    else if(a==='cameras'){ at(2900,function(){ C('btn-cameras'); }); }
+    else if(a==='settings'){ at(2900,function(){ C('btn-settings'); }); }
+    else if(a==='manual'){ at(2900,function(){ C('btn-pro'); }); at(3300,function(){ T('peaking'); T('zebra'); }); }
+    else if(a==='rbeauty'||a==='rvintage'){ at(2900,function(){ C('btn-shutter'); }); }
+  });
+})();
+</script>
 </body>
 </html>
