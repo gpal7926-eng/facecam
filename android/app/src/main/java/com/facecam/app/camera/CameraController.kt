@@ -5,7 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.util.Log
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
@@ -31,7 +34,28 @@ class CameraController(private val context: Context) {
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var imageCapture: ImageCapture? = null
+    private var imageAnalysis: ImageAnalysis? = null
+    private var camera: Camera? = null
+    private var cameraInfo: CameraInfo? = null
     private var lensFacing: LensFacing = LensFacing.BACK
+
+    /** The bound [Camera], or null before [bind] completes. Used by PRO mode. */
+    fun currentCamera(): Camera? = camera
+
+    /** The bound [CameraInfo], or null before [bind] completes. Used by PRO mode. */
+    fun currentCameraInfo(): CameraInfo? = cameraInfo
+
+    /**
+     * Attach (or clear) a frame analyzer on the ImageAnalysis use case. PRO mode
+     * uses this for the histogram and the peaking / zebra / false-colour
+     * overlays. Passing null installs a no-op analyzer so simple mode stays
+     * completely idle.
+     */
+    fun setFrameAnalyzer(analyzer: ImageAnalysis.Analyzer?) {
+        val analysis = imageAnalysis ?: return
+        val effective = analyzer ?: ImageAnalysis.Analyzer { it.close() }
+        analysis.setAnalyzer(ContextCompat.getMainExecutor(context), effective)
+    }
 
     /** Bind the preview to the given [previewView] and prepare the capture use case. */
     fun bind(
@@ -53,6 +77,10 @@ class CameraController(private val context: Context) {
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
+                imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { it.setAnalyzer(ContextCompat.getMainExecutor(context)) { proxy -> proxy.close() } }
 
                 val selector = CameraSelector.Builder()
                     .requireLensFacing(
@@ -65,7 +93,15 @@ class CameraController(private val context: Context) {
                     .build()
 
                 provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+                val bound = provider.bindToLifecycle(
+                    lifecycleOwner,
+                    selector,
+                    preview,
+                    imageCapture,
+                    imageAnalysis
+                )
+                camera = bound
+                cameraInfo = bound.cameraInfo
                 onReady(true)
             } catch (t: Throwable) {
                 Log.e(TAG, "Camera bind failed", t)
@@ -132,6 +168,8 @@ class CameraController(private val context: Context) {
 
     fun unbind() {
         cameraProvider?.unbindAll()
+        camera = null
+        cameraInfo = null
     }
 
     /** Persist a bitmap to a temp file (used when a FileProvider Uri is needed). */

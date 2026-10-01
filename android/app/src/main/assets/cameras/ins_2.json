@@ -1,6 +1,7 @@
 {
   "id": "ins_2",
   "name": "INS 2",
+  "tag": "Instant Square",
   "description": "Instant camera, square frame and wait to develop.",
   "colorMatrix": [
     0.9654,

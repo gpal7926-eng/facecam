@@ -1,6 +1,7 @@
 {
   "id": "wide_17",
   "name": "WIDE 17",
+  "tag": "Wide 17mm",
   "description": "Ultra-wide cinematic crop.",
   "colorMatrix": [
     0.9545,

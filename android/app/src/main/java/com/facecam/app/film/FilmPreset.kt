@@ -18,6 +18,8 @@ data class FilmPreset(
     val id: String,
     val name: String,
     val description: String,
+    /** Short tag burned into the FaceCam branding band, e.g. "35mm Classic". */
+    val tag: String? = null,
     val matrix: FloatArray,
     /** Grain density, 0..1 (higher = more visible film grain). */
     val grain: Float,
@@ -36,6 +38,9 @@ data class FilmPreset(
     /** Optional texture overlay asset file name, or null for procedural only. */
     val overlay: String? = null
 ) {
+    /** Tag used in the branding band; falls back to the display name. */
+    fun brandingTag(): String = tag?.takeIf { it.isNotBlank() } ?: name
+
     /** True when the camera must be bought (not free) and not covered by PRO. */
     fun isPaid(): Boolean = !free
 

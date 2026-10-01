@@ -1,6 +1,7 @@
 {
   "id": "toy_f",
   "name": "TOY F",
+  "tag": "Toy Flash",
   "description": "Lomography toy camera, heavy vignette.",
   "colorMatrix": [
     1.2238,

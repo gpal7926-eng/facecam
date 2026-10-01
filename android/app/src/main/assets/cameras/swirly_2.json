@@ -1,6 +1,7 @@
 {
   "id": "swirly_2",
   "name": "SWIRLY 2",
+  "tag": "Swirly Bokeh",
   "description": "Dreamy soft-focus with swirl bokeh feel.",
   "colorMatrix": [
     0.8785,

@@ -1,6 +1,7 @@
 {
   "id": "film_2007",
   "name": "2007",
+  "tag": "Film 2007",
   "description": "Late-2000s phone-camera nostalgia.",
   "colorMatrix": [
     0.9618,

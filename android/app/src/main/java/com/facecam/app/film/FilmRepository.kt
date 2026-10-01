@@ -63,6 +63,7 @@ class FilmRepository(private val context: Context) {
             id = o.getString("id"),
             name = o.getString("name"),
             description = o.optString("description", ""),
+            tag = if (o.isNull("tag")) null else o.optString("tag", null),
             matrix = matrix,
             grain = o.optDouble("grain", 0.3).toFloat(),
             leak = o.optDouble("leak", 0.1).toFloat(),

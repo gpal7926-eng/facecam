@@ -18,6 +18,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_BORDER, true)
         set(value) = prefs.edit { putBoolean(KEY_BORDER, value) }
 
+    /** Append the "FaceCam" branding band under every processed photo. */
+    var branding: Boolean
+        get() = prefs.getBoolean(KEY_BRANDING, true)
+        set(value) = prefs.edit { putBoolean(KEY_BRANDING, value) }
+
     var shutterSound: Boolean
         get() = prefs.getBoolean(KEY_SHUTTER_SOUND, true)
         set(value) = prefs.edit { putBoolean(KEY_SHUTTER_SOUND, value) }
@@ -38,6 +43,7 @@ class SettingsStore(context: Context) {
         private const val PREFS = "facecam_settings"
         private const val KEY_DATE_STAMP = "date_stamp"
         private const val KEY_BORDER = "border"
+        private const val KEY_BRANDING = "branding"
         private const val KEY_SHUTTER_SOUND = "shutter_sound"
         private const val KEY_DEFAULT_CAMERA = "default_camera"
         private const val KEY_ONBOARDING = "onboarding_complete"

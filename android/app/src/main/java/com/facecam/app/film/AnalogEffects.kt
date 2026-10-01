@@ -14,6 +14,7 @@ import android.graphics.Rect
 import android.graphics.Shader
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.random.Random
 
 /**
@@ -22,13 +23,16 @@ import kotlin.random.Random
  *
  * Pipeline order:
  *   colour curve (ColorMatrix)
+ *     -> film tone curve (per-channel lift/gamma/gain LUT)
+ *     -> halation / bloom (warm highlight bleed)
  *     -> sharpen / soften
- *     -> grain
+ *     -> grain (luminance + chroma noise)
  *     -> vignette
  *     -> light leak
  *     -> dust / scratches
  *     -> frame (drawn by [OverlayRenderer])
  *     -> optional burned-in date stamp (drawn by [DateStampRenderer])
+ *     -> FaceCam branding band (drawn by [BrandingRenderer])
  *
  * Every stage is randomised per shot so no two frames are identical.
  */
@@ -39,6 +43,7 @@ object AnalogEffects {
         val preset: FilmPreset,
         val border: Boolean = true,
         val dateStamp: Boolean = true,
+        val branding: Boolean = true,
         val seed: Long = System.nanoTime()
     )
 
@@ -57,6 +62,8 @@ object AnalogEffects {
         var bmp = source.copy(Bitmap.Config.ARGB_8888, true)
 
         bmp = applyColorCurve(bmp, options.preset, rnd)
+        bmp = applyToneCurve(bmp, rnd)
+        bmp = applyHalation(bmp, rnd)
         bmp = if (options.preset.grain > 0.34f) soften(bmp, rnd) else sharpen(bmp, rnd)
         bmp = applyGrain(bmp, options.preset.grain, rnd)
         bmp = applyVignette(bmp, options.preset.vignette)
@@ -68,6 +75,13 @@ object AnalogEffects {
         }
         if (options.dateStamp && dateStampText != null) {
             bmp = DateStampRenderer.draw(bmp, dateStampText, rnd)
+        }
+        if (options.branding) {
+            bmp = BrandingRenderer.draw(
+                src = bmp,
+                tag = options.preset.brandingTag(),
+                bandColor = BrandingRenderer.bandColorForFrame(options.preset.frame)
+            )
         }
         return bmp
     }
@@ -104,6 +118,118 @@ object AnalogEffects {
         val paint = Paint(Paint.FILTER_BITMAP_FLAG)
         paint.colorFilter = ColorMatrixColorFilter(cm)
         canvas.drawBitmap(src, 0f, 0f, paint)
+        src.recycle()
+        return out
+    }
+
+    // ---------------------------------------------------------------------
+    // Stage 1b: film tone curve (per-channel lift / gamma / gain LUT)
+    // ---------------------------------------------------------------------
+    /**
+     * Builds three 256-entry lookup tables (R, G, B) from a randomised
+     * lift/gamma/gain model - the classic film printer controls - and applies
+     * them per pixel. This replaces the flat, digital look of a pure colour
+     * matrix with a proper film response curve.
+     */
+    private fun applyToneCurve(src: Bitmap, rnd: Random): Bitmap {
+        val lift = FloatArray(3) { (rnd.nextFloat() - 0.5f) * 0.055f }
+        val gamma = FloatArray(3) { 0.90f + rnd.nextFloat() * 0.22f }   // 0.90..1.12
+        val gain = FloatArray(3) { 0.96f + rnd.nextFloat() * 0.09f }    // 0.96..1.05
+
+        val lut = Array(3) { ch ->
+            IntArray(256) { i ->
+                val x = i / 255f
+                // Film-style S response: gamma-shaped with a soft shoulder.
+                val shaped = x.pow(1f / gamma[ch])
+                val y = ((shaped + lift[ch]) * gain[ch]).coerceIn(0f, 1f)
+                (y * 255f + 0.5f).toInt().coerceIn(0, 255)
+            }
+        }
+
+        val w = src.width
+        val h = src.height
+        val pixels = IntArray(w * h)
+        src.getPixels(pixels, 0, w, 0, 0, w, h)
+        for (i in pixels.indices) {
+            val c = pixels[i]
+            val r = lut[0][comp(c, 16)]
+            val g = lut[1][comp(c, 8)]
+            val b = lut[2][comp(c, 0)]
+            pixels[i] = Color.argb(comp(c, 24), r, g, b)
+        }
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        out.setPixels(pixels, 0, w, 0, 0, w, h)
+        src.recycle()
+        return out
+    }
+
+    // ---------------------------------------------------------------------
+    // Stage 1c: halation / bloom around highlights
+    // ---------------------------------------------------------------------
+    /**
+     * Extracts a bright pass, blurs it heavily and screen-blends it back with a
+     * warm amber tint - the soft reddish glow film gives around specular
+     * highlights (halation).
+     */
+    private fun applyHalation(src: Bitmap, rnd: Random): Bitmap {
+        val w = src.width
+        val h = src.height
+        if (w < 4 || h < 4) return src
+
+        val pixels = IntArray(w * h)
+        src.getPixels(pixels, 0, w, 0, 0, w, h)
+        val bright = IntArray(w * h)
+        val threshold = 188f
+        for (i in pixels.indices) {
+            val c = pixels[i]
+            val r = comp(c, 16)
+            val g = comp(c, 8)
+            val b = comp(c, 0)
+            val lum = 0.2126f * r + 0.7152f * g + 0.0722f * b
+            if (lum > threshold) {
+                // Keep only the excess above the threshold, scaled up.
+                val excess = ((lum - threshold) / (255f - threshold)).coerceIn(0f, 1f)
+                val s = (excess * 255f).toInt()
+                bright[i] = Color.argb(255, s, s, s)
+            } else {
+                bright[i] = Color.argb(0, 0, 0, 0)
+            }
+        }
+        val brightBmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        brightBmp.setPixels(bright, 0, w, 0, 0, w, h)
+
+        // Heavy blur via downscale / upscale (cheap, GPU-free).
+        val sw = max(1, w / 10)
+        val sh = max(1, h / 10)
+        val small = Bitmap.createScaledBitmap(brightBmp, sw, sh, true)
+        val blurred = Bitmap.createScaledBitmap(small, w, h, true)
+        small.recycle()
+        brightBmp.recycle()
+
+        // Warm tint: lift red, drop blue slightly.
+        val warm = ColorMatrix(
+            floatArrayOf(
+                1.12f, 0f, 0f, 0f, 12f,
+                0f, 1.00f, 0f, 0f, 4f,
+                0f, 0f, 0.82f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        val halo = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val haloCanvas = Canvas(halo)
+        val tintPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+        tintPaint.colorFilter = ColorMatrixColorFilter(warm)
+        haloCanvas.drawBitmap(blurred, 0f, 0f, tintPaint)
+        blurred.recycle()
+
+        val out = src.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(out)
+        val blend = Paint(Paint.FILTER_BITMAP_FLAG)
+        blend.xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
+        blend.alpha = (70 + rnd.nextInt(60)).coerceAtMost(150)
+        canvas.drawBitmap(halo, 0f, 0f, blend)
+        blend.xfermode = null
+        halo.recycle()
         src.recycle()
         return out
     }
@@ -183,12 +309,17 @@ object AnalogEffects {
         val pixels = IntArray(w * h)
         out.getPixels(pixels, 0, w, 0, 0, w, h)
         val strength = (grain.coerceIn(0f, 1f) * 60f).toInt()
+        // Chroma noise is independent per channel; luminance grain is shared.
+        val chroma = (grain.coerceIn(0f, 1f) * 22f).toInt()
         for (i in pixels.indices) {
             val c = pixels[i]
-            val noise = rnd.nextInt(-strength, strength + 1)
-            val r = clamp(comp(c, 16) + noise)
-            val g = clamp(comp(c, 8) + noise)
-            val b = clamp(comp(c, 0) + noise)
+            val luma = rnd.nextInt(-strength, strength + 1)
+            val nr = luma + rnd.nextInt(-chroma, chroma + 1)
+            val ng = luma + rnd.nextInt(-chroma, chroma + 1)
+            val nb = luma + rnd.nextInt(-chroma, chroma + 1)
+            val r = clamp(comp(c, 16) + nr)
+            val g = clamp(comp(c, 8) + ng)
+            val b = clamp(comp(c, 0) + nb)
             pixels[i] = Color.argb(comp(c, 24), r, g, b)
         }
         out.setPixels(pixels, 0, w, 0, 0, w, h)

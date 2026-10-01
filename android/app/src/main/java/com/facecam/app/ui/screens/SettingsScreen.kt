@@ -47,6 +47,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     var dateStamp by remember { mutableStateOf(viewModel.settingsStore.dateStamp) }
     var border by remember { mutableStateOf(viewModel.settingsStore.border) }
+    var branding by remember { mutableStateOf(viewModel.settingsStore.branding) }
     var shutterSound by remember { mutableStateOf(viewModel.settingsStore.shutterSound) }
     val selected by viewModel.selectedCamera.collectAsState()
     var defaultCameraId by remember {
@@ -89,6 +90,15 @@ fun SettingsScreen(
         ) {
             border = it
             viewModel.settingsStore.border = it
+        }
+
+        SettingSwitch(
+            title = "FaceCam watermark",
+            subtitle = "Add the FaceCam caption band under each photo",
+            checked = branding
+        ) {
+            branding = it
+            viewModel.settingsStore.branding = it
         }
 
         SettingSwitch(

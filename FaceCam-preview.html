@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <!--
   FaceCam - standalone single-file web preview.
-  HTML + CSS + JavaScript in one file: no build step, no dependencies,
-  no network calls. Just open this file in a browser.
-
-  No camera? The viewfinder offers "Demo scene try karein", which runs the
-  full shutter -> film effects -> save -> gallery path on a built-in scene.
+  HTML + CSS + JavaScript in one file: no build step, no dependencies, no network.
+  Includes the FaceCam watermark band, the realistic film pipeline, and PRO mode
+  (grid, level, live histogram, focus peaking, zebra, false colour, manual controls).
 -->
 
 <html lang="en">
@@ -457,7 +455,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 /* ---------- Toast ---------- */
 .toast {
   position: absolute;
-  left: 50%; bottom: 96px;
+  left: 50%; bottom: 232px;
   transform: translate(-50%, 20px);
   background: rgba(30,30,34,.96);
   color: var(--text);
@@ -516,6 +514,97 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 #btn-before.on { background: var(--accent); color: #1a1205; border-color: transparent; }
 .topbar h1 small { color: var(--muted); font-weight: 500; font-size: 13px; }
 
+/* ---------- PRO mode (Blackmagic-inspired HUD) ---------- */
+.pro-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.pro-grid {
+  position: absolute; inset: 0;
+  display: none;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to right, rgba(255,255,255,.30) 0 1px, transparent 1px 33.3333%),
+    repeating-linear-gradient(to bottom, rgba(255,255,255,.30) 0 1px, transparent 1px 33.3333%);
+}
+.pro-hud { position: absolute; inset: 0; display: none; pointer-events: none; }
+.pro-hud.show {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0 12px 206px; gap: 8px;
+}
+
+.pro-hist {
+  position: absolute; top: 62px; right: 12px;
+  width: 160px; height: 56px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 6px;
+}
+
+.pro-level {
+  position: absolute; top: 52%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 10px;
+  color: #fff; font-size: 11px;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+.pro-level-track {
+  position: relative;
+  width: 130px; height: 3px;
+  background: rgba(255,255,255,.35);
+  border-radius: 2px;
+}
+.pro-level-bar {
+  position: absolute; left: 0; top: -3px;
+  width: 130px; height: 9px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  transform-origin: 50% 50%;
+  transition: transform .1s linear, background .15s linear;
+}
+
+.pro-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.pro-toggles {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-width: 196px;
+  pointer-events: auto;
+}
+.pro-btn {
+  appearance: none;
+  font-size: 11px; padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(0,0,0,.5);
+  color: #dcdcdc; cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.pro-btn.on { background: var(--accent); color: #1a1205; border-color: transparent; }
+
+.pro-controls {
+  width: 178px;
+  flex: none;
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.48);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+}
+.pro-ctl { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 6px; }
+.pro-ctl label { font-size: 10.5px; color: #b9b6ae; }
+.pro-ctl input[type="range"] { width: 100%; accent-color: var(--accent); }
+.pro-ctl-val { grid-column: 1 / -1; font-size: 10px; color: #7dd3fc; text-align: right; }
+.pro-ctl.off { opacity: .45; }
+
+.pro-note {
+  margin: 0;
+  font-size: 10px; line-height: 1.35;
+  color: #9a978f; text-align: center;
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+
 </style>
 </head>
 <body>
@@ -556,6 +645,27 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div id="double-chip" class="double-chip"><img alt="First shot"><span>1st shot</span></div>
       <div id="flash-overlay"></div>
 
+      <canvas id="pro-canvas" class="pro-canvas"></canvas>
+      <div id="pro-grid" class="pro-grid"></div>
+      <div id="pro-hud" class="pro-hud">
+        <canvas id="pro-hist" class="pro-hist"></canvas>
+        <div id="pro-level" class="pro-level">
+          <div class="pro-level-track"><div id="pro-level-bar" class="pro-level-bar"></div></div>
+          <span id="pro-level-val">0.0&deg;</span>
+        </div>
+        <div class="pro-row">
+          <div class="pro-toggles">
+            <button class="pro-btn on" data-pro-toggle="grid">Grid</button>
+            <button class="pro-btn on" data-pro-toggle="level">Level</button>
+            <button class="pro-btn" data-pro-toggle="peaking">Peaking</button>
+            <button class="pro-btn" data-pro-toggle="zebra">Zebra</button>
+            <button class="pro-btn" data-pro-toggle="falseColor">False</button>
+          </div>
+          <div id="pro-controls" class="pro-controls"></div>
+        </div>
+        <p id="pro-support-note" class="pro-note"></p>
+      </div>
+
       <div id="cam-fallback" class="cam-fallback">
         <p id="fallback-text">Camera is device par available nahi hai.</p>
         <p class="fine">Demo scene se poora film pipeline test karein, ya gallery se photo import karein.</p>
@@ -568,7 +678,8 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div class="vf-top">
         <div class="vf-title"><span id="cam-name">FaceCam 135 B</span><small id="cam-tag">35mm Classic</small></div>
         <div class="vf-top-actions">
-          <button class="icon-btn" id="btn-paywall" title="PRO">PRO</button>
+          <button class="icon-btn" id="btn-pro" title="Pro camera mode">M</button>
+          <button class="icon-btn" id="btn-paywall" title="PRO membership">PRO</button>
           <button class="icon-btn" id="btn-settings" title="Settings">&#9881;</button>
         </div>
       </div>
@@ -642,6 +753,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
         <label class="row"><span>Date stamp</span><input type="checkbox" id="set-datestamp"></label>
         <label class="row"><span>Border / frame</span><input type="checkbox" id="set-border"></label>
         <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
+        <label class="row"><span>FaceCam watermark</span><input type="checkbox" id="set-branding"></label>
         <label class="row"><span>Default camera</span><select id="set-default"></select></label>
         <div class="row"><span>Plan</span><strong id="set-pro-state">Free plan</strong></div>
         <button class="link-btn" id="set-reset">Reset app data</button>
@@ -723,15 +835,26 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 
 <script>
 /* FaceCam — film simulation presets.
- * Each "camera" defines a distinct vintage look. `filter` is a CSS filter string
- * used for the live viewfinder preview and the canvas colour curve. The numeric
- * fields (0..1) drive the randomised analog effects applied on capture.
+ *
+ * `filter`   CSS filter string — used for the live viewfinder preview and as the
+ *            base colour curve at capture time.
+ * `tone`     per-channel film tone curve applied per pixel (the realistic part):
+ *              lift  -0.1..0.12  raises/lowers the black point (faded vs deep blacks)
+ *              gamma  0.8..1.25  mid-tone contrast
+ *              gain   0.9..1.1   overall brightness
+ *              warmth -0.15..0.15 red/blue split (positive = warmer)
+ *              sat    0.8..1.4   saturation
+ * `halation` 0..1  glow that bleeds around bright highlights (very filmic)
+ * `chroma`   0..1  colour noise, on top of the luminance grain
+ * `grain` `dust` `vignette` `leak`  0..1  the randomised analog effects
  */
 const CAMERAS = [
   {
     id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic',
     desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
     filter: 'contrast(1.06) saturate(1.08) sepia(0.10) brightness(1.02)',
+    tone: { lift: 0.015, gamma: 1.02, gain: 1.02, warmth: 0.035, sat: 1.08 },
+    halation: 0.35, chroma: 0.18,
     grain: 0.28, dust: 0.18, vignette: 0.34, leak: 0.22,
     leakColors: ['#ffb347', '#ff7043'],
     frame: { style: 'thin', color: '#f6efe1' }, dateStamp: false,
@@ -739,8 +862,10 @@ const CAMERAS = [
   },
   {
     id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody',
-    desc: 'Cool, contrasty monochrome-leaning look with deep shadows.',
+    desc: 'Cool, contrasty, monochrome-leaning look with deep shadows.',
     filter: 'contrast(1.18) saturate(0.72) brightness(0.98) hue-rotate(-8deg)',
+    tone: { lift: -0.035, gamma: 1.14, gain: 0.99, warmth: -0.05, sat: 0.82 },
+    halation: 0.22, chroma: 0.10,
     grain: 0.42, dust: 0.24, vignette: 0.48, leak: 0.14,
     leakColors: ['#9fd3ff', '#6b8cff'],
     frame: { style: 'thin', color: '#e9e4d8' }, dateStamp: false,
@@ -750,6 +875,8 @@ const CAMERAS = [
     id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy',
     desc: 'Vivid, high-saturation film. Great for double exposures.',
     filter: 'contrast(1.12) saturate(1.35) brightness(1.03)',
+    tone: { lift: 0.005, gamma: 1.06, gain: 1.02, warmth: 0.02, sat: 1.32 },
+    halation: 0.30, chroma: 0.22,
     grain: 0.32, dust: 0.20, vignette: 0.30, leak: 0.30,
     leakColors: ['#ff5f6d', '#ffc371'],
     frame: { style: 'thin', color: '#fff7ea' }, dateStamp: false,
@@ -759,6 +886,8 @@ const CAMERAS = [
     id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera',
     desc: 'Cheap plastic-lens toy look. Heavy vignette, punchy colours.',
     filter: 'contrast(1.35) saturate(1.6) brightness(1.05)',
+    tone: { lift: -0.01, gamma: 1.18, gain: 1.03, warmth: 0.05, sat: 1.55 },
+    halation: 0.55, chroma: 0.40,
     grain: 0.55, dust: 0.35, vignette: 0.78, leak: 0.45,
     leakColors: ['#ff3d6e', '#ffd166'],
     frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
@@ -768,6 +897,8 @@ const CAMERAS = [
     id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera',
     desc: 'Softer toy rendering with a cyan shift and strong falloff.',
     filter: 'contrast(1.22) saturate(1.3) hue-rotate(12deg) brightness(1.04)',
+    tone: { lift: -0.005, gamma: 1.12, gain: 1.03, warmth: -0.04, sat: 1.28 },
+    halation: 0.50, chroma: 0.34,
     grain: 0.50, dust: 0.32, vignette: 0.70, leak: 0.38,
     leakColors: ['#3ddcff', '#5b7bff'],
     frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
@@ -777,6 +908,8 @@ const CAMERAS = [
     id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer',
     desc: 'Golden Mediterranean warmth. Faded blacks, sun-bleached colour.',
     filter: 'sepia(0.35) saturate(1.15) contrast(0.95) brightness(1.06)',
+    tone: { lift: 0.055, gamma: 0.97, gain: 1.05, warmth: 0.09, sat: 1.10 },
+    halation: 0.60, chroma: 0.20,
     grain: 0.30, dust: 0.22, vignette: 0.32, leak: 0.50,
     leakColors: ['#ffd27f', '#ff9a3c'],
     frame: { style: 'thin', color: '#fbf3e3' }, dateStamp: true,
@@ -786,6 +919,8 @@ const CAMERAS = [
     id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave',
     desc: 'Cinematic teal-and-orange with gentle halation.',
     filter: 'contrast(1.14) saturate(1.05) hue-rotate(-14deg) brightness(0.99)',
+    tone: { lift: 0.02, gamma: 1.08, gain: 1.00, warmth: 0.045, sat: 1.02 },
+    halation: 0.65, chroma: 0.16,
     grain: 0.36, dust: 0.18, vignette: 0.40, leak: 0.28,
     leakColors: ['#ff8a5c', '#ffd08a'],
     frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
@@ -795,6 +930,8 @@ const CAMERAS = [
     id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia',
     desc: 'Early-2000s compact camera: harsh flash, oversharpened, magenta.',
     filter: 'contrast(1.25) saturate(1.25) hue-rotate(6deg) brightness(1.05)',
+    tone: { lift: -0.02, gamma: 1.10, gain: 1.05, warmth: 0.055, sat: 1.22 },
+    halation: 0.45, chroma: 0.55,
     grain: 0.60, dust: 0.30, vignette: 0.44, leak: 0.20,
     leakColors: ['#ff77c8', '#ffd0f0'],
     frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
@@ -804,6 +941,8 @@ const CAMERAS = [
     id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera',
     desc: 'Tuned for food: warm, appetising, boosted mid-tones.',
     filter: 'contrast(1.10) saturate(1.45) sepia(0.12) brightness(1.08)',
+    tone: { lift: 0.02, gamma: 0.98, gain: 1.07, warmth: 0.075, sat: 1.40 },
+    halation: 0.30, chroma: 0.14,
     grain: 0.22, dust: 0.12, vignette: 0.26, leak: 0.30,
     leakColors: ['#ffcf5c', '#ff9f43'],
     frame: { style: 'thin', color: '#fff6e6' }, dateStamp: false,
@@ -813,6 +952,8 @@ const CAMERAS = [
     id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid',
     desc: 'Instant film with a thick white border and a developing wait.',
     filter: 'contrast(0.94) saturate(0.92) sepia(0.20) brightness(1.10)',
+    tone: { lift: 0.075, gamma: 0.92, gain: 1.08, warmth: 0.05, sat: 0.95 },
+    halation: 0.40, chroma: 0.18,
     grain: 0.34, dust: 0.26, vignette: 0.20, leak: 0.55,
     leakColors: ['#ffe6a7', '#ffb26b'],
     frame: { style: 'instant', color: '#ffffff' }, dateStamp: false,
@@ -823,6 +964,8 @@ const CAMERAS = [
     id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh',
     desc: 'Petzval-style swirl. Soft corners, dreamy centre.',
     filter: 'contrast(1.05) saturate(1.10) blur(0.4px) brightness(1.04)',
+    tone: { lift: 0.03, gamma: 1.00, gain: 1.04, warmth: 0.02, sat: 1.10 },
+    halation: 0.75, chroma: 0.20,
     grain: 0.30, dust: 0.16, vignette: 0.62, leak: 0.34,
     leakColors: ['#c9a7ff', '#7fd8ff'],
     frame: { style: 'thin', color: '#f2ecff' }, dateStamp: false,
@@ -832,6 +975,8 @@ const CAMERAS = [
     id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7',
     desc: 'Medium-format rangefinder. Rich, dense, professional colour.',
     filter: 'contrast(1.16) saturate(1.12) brightness(0.99) sepia(0.06)',
+    tone: { lift: -0.025, gamma: 1.10, gain: 1.01, warmth: 0.03, sat: 1.12 },
+    halation: 0.28, chroma: 0.12,
     grain: 0.26, dust: 0.14, vignette: 0.30, leak: 0.18,
     leakColors: ['#ffc9a0', '#ff8f6b'],
     frame: { style: 'cinema', color: '#141414' }, dateStamp: true,
@@ -841,6 +986,8 @@ const CAMERAS = [
     id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide',
     desc: 'Wide-lens look with lifted blacks and a cool cast.',
     filter: 'contrast(1.08) saturate(0.95) hue-rotate(-6deg) brightness(1.02)',
+    tone: { lift: 0.04, gamma: 1.04, gain: 1.02, warmth: -0.045, sat: 0.98 },
+    halation: 0.35, chroma: 0.16,
     grain: 0.30, dust: 0.18, vignette: 0.42, leak: 0.26,
     leakColors: ['#8fd8ff', '#c6f0ff'],
     frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
@@ -853,14 +1000,26 @@ if (typeof module !== 'undefined') { module.exports = { CAMERAS }; }
 </script>
 <script>
 /* FaceCam — analog film effects engine.
- * Pure canvas. Colour curve comes from the preset's CSS filter; everything else
- * (grain, light leak, vignette, dust/scratches, frame, date stamp) is drawn here
- * with randomised intensity so no two photos look identical.
+ *
+ * The realistic pipeline, in order:
+ *   1. film tone curve      per-channel lift / gamma / gain + warmth + saturation
+ *   2. halation             bright-pass blur screen-blended back with a warm tint
+ *   3. luminance grain      randomised silver-halide noise
+ *   4. chroma noise         blotchy colour noise (film is not clean)
+ *   5. light leak          randomised coloured edge streak
+ *   6. vignette            soft corner falloff
+ *   7. dust & scratches    specks and hairs from a dirty negative
+ *   8. frame               the camera's border
+ *   9. date stamp          optional burned-in date
+ *  10. branding band       "FaceCam" caption appended BELOW the photo
+ *
+ * Everything is pure canvas — no libraries, no network.
  */
 const Effects = (() => {
   const rand = (a, b) => a + Math.random() * (b - a);
   const randInt = (a, b) => Math.floor(rand(a, b + 1));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
   function drawCover(ctx, source, w, h) {
     const sw = source.videoWidth || source.naturalWidth || source.width;
@@ -871,7 +1030,7 @@ const Effects = (() => {
     ctx.drawImage(source, (w - dw) / 2, (h - dh) / 2, dw, dh);
   }
 
-  /* Grab a frame from a video/image and apply the colour curve. */
+  /* Grab a frame from a video/image and apply the base colour curve. */
   function capture(source, w, h, filter) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
@@ -882,6 +1041,74 @@ const Effects = (() => {
     return c;
   }
 
+  /* ---------- 1. film tone curve ---------- */
+  function buildCurveLUT(tone) {
+    tone = tone || {};
+    const lift = tone.lift || 0;
+    const gamma = tone.gamma || 1;
+    const gain = tone.gain || 1;
+    const warmth = tone.warmth || 0;
+    const r = new Uint8ClampedArray(256);
+    const g = new Uint8ClampedArray(256);
+    const b = new Uint8ClampedArray(256);
+    for (let i = 0; i < 256; i++) {
+      let v = i / 255;
+      v = clamp01(v + lift);              // raise / lower the black point
+      v = Math.pow(v, 1 / gamma);         // mid-tone contrast
+      v = clamp01(v * gain);              // overall exposure
+      r[i] = clamp01(v + warmth * 0.55) * 255;
+      g[i] = clamp01(v + warmth * 0.05) * 255;
+      b[i] = clamp01(v - warmth * 0.55) * 255;
+    }
+    return { r, g, b };
+  }
+
+  function applyTone(canvas, tone) {
+    if (!tone) return;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = img.data;
+    const lut = buildCurveLUT(tone);
+    const sat = tone.sat == null ? 1 : tone.sat;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = lut.r[d[i]], g = lut.g[d[i + 1]], b = lut.b[d[i + 2]];
+      if (sat !== 1) {
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        r = luma + (r - luma) * sat;
+        g = luma + (g - luma) * sat;
+        b = luma + (b - luma) * sat;
+      }
+      d[i] = r < 0 ? 0 : r > 255 ? 255 : r;
+      d[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+      d[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* ---------- 2. halation / bloom ---------- */
+  function halation(ctx, w, h, amount) {
+    if (amount <= 0) return;
+    const tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const t = tmp.getContext('2d');
+    const blur = Math.max(2, Math.round(Math.min(w, h) * 0.014));
+    t.filter = 'brightness(1.55) contrast(2.6) blur(' + blur + 'px)';
+    t.drawImage(ctx.canvas, 0, 0);
+    t.filter = 'none';
+    // warm the glow
+    t.globalCompositeOperation = 'multiply';
+    t.fillStyle = 'rgb(255,196,146)';
+    t.fillRect(0, 0, w, h);
+    t.globalCompositeOperation = 'source-over';
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = Math.min(0.55, amount * 0.45);
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
+  }
+
+  /* ---------- 3. luminance grain ---------- */
   function grain(ctx, w, h, amount) {
     if (amount <= 0) return;
     const size = 160;
@@ -896,14 +1123,37 @@ const Effects = (() => {
     }
     nctx.putImageData(img, 0, 0);
     ctx.save();
-    ctx.globalAlpha = Math.min(0.85, amount * 0.55);
+    ctx.globalAlpha = Math.min(0.8, amount * 0.5);
     ctx.globalCompositeOperation = 'overlay';
-    const pat = ctx.createPattern(n, 'repeat');
-    ctx.fillStyle = pat;
+    ctx.fillStyle = ctx.createPattern(n, 'repeat');
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
   }
 
+  /* ---------- 4. chroma noise ---------- */
+  function chromaNoise(ctx, w, h, amount) {
+    if (amount <= 0) return;
+    const size = 96;
+    const n = document.createElement('canvas');
+    n.width = size; n.height = size;
+    const nc = n.getContext('2d');
+    const img = nc.createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      img.data[i] = Math.random() * 255;
+      img.data[i + 1] = Math.random() * 255;
+      img.data[i + 2] = Math.random() * 255;
+      img.data[i + 3] = Math.round(18 + Math.random() * 55 * amount);
+    }
+    nc.putImageData(img, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = Math.min(0.45, amount * 0.3);
+    ctx.fillStyle = ctx.createPattern(n, 'repeat');
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  /* ---------- 5. light leak ---------- */
   function lightLeak(ctx, w, h, amount, colors) {
     if (amount <= 0 || !colors || !colors.length) return;
     ctx.save();
@@ -915,7 +1165,7 @@ const Effects = (() => {
     else if (edge === 1) g = ctx.createLinearGradient(w, 0, w * rand(0.4, 0.65), 0);
     else if (edge === 2) g = ctx.createLinearGradient(0, 0, 0, h * rand(0.35, 0.6));
     else g = ctx.createLinearGradient(0, h, 0, h * rand(0.4, 0.65));
-    const a = Math.min(0.75, amount * 0.55);
+    const a = Math.min(0.7, amount * 0.5);
     g.addColorStop(0, hexToRgba(c, a));
     g.addColorStop(0.5, hexToRgba(c, a * 0.35));
     g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -924,19 +1174,22 @@ const Effects = (() => {
     ctx.restore();
   }
 
+  /* ---------- 6. vignette ---------- */
   function vignette(ctx, w, h, amount) {
     const g = ctx.createRadialGradient(
-      w / 2, h / 2, Math.min(w, h) * 0.28,
+      w / 2, h / 2, Math.min(w, h) * 0.30,
       w / 2, h / 2, Math.max(w, h) * 0.72
     );
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.9, 0.12 + amount * 0.62).toFixed(3) + ')');
+    g.addColorStop(0.65, 'rgba(0,0,0,' + Math.min(0.5, amount * 0.25).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.9, 0.14 + amount * 0.6).toFixed(3) + ')');
     ctx.save();
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
   }
 
+  /* ---------- 7. dust & scratches ---------- */
   function dust(ctx, w, h, amount) {
     if (amount <= 0) return;
     ctx.save();
@@ -964,6 +1217,7 @@ const Effects = (() => {
     ctx.restore();
   }
 
+  /* ---------- 8. frame ---------- */
   function frame(ctx, w, h, frame) {
     if (!frame) return;
     ctx.save();
@@ -995,6 +1249,7 @@ const Effects = (() => {
     ctx.restore();
   }
 
+  /* ---------- 9. date stamp ---------- */
   function dateStamp(ctx, w, h) {
     const d = new Date();
     const txt = "'" + String(d.getFullYear()).slice(2) + ' ' +
@@ -1013,26 +1268,80 @@ const Effects = (() => {
     ctx.restore();
   }
 
-  /* Run the full randomised pipeline over a captured canvas. */
+  /* ---------- run the full randomised pipeline ---------- */
   function process(canvas, preset, settings) {
     settings = settings || {};
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
-    const g = Math.min(1, preset.grain * rand(0.6, 1.4));
-    const l = preset.leak * rand(0.4, 1.6);
-    const v = Math.min(1, preset.vignette * rand(0.7, 1.3));
-    const d = Math.min(1, preset.dust * rand(0.5, 1.5));
 
-    grain(ctx, w, h, g);
-    lightLeak(ctx, w, h, l, preset.leakColors);
-    vignette(ctx, w, h, v);
-    dust(ctx, w, h, d);
+    applyTone(canvas, preset.tone);
+    halation(ctx, w, h, (preset.halation || 0) * rand(0.7, 1.3));
+    grain(ctx, w, h, Math.min(1, preset.grain * rand(0.6, 1.4)));
+    chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * rand(0.6, 1.4)));
+    lightLeak(ctx, w, h, preset.leak * rand(0.4, 1.6), preset.leakColors);
+    vignette(ctx, w, h, Math.min(1, preset.vignette * rand(0.7, 1.3)));
+    dust(ctx, w, h, Math.min(1, preset.dust * rand(0.5, 1.5)));
     if (settings.border !== false) frame(ctx, w, h, preset.frame);
     if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h);
     return canvas;
   }
 
-  /* Merge two frames for double exposure. */
+  /* ---------- 10. FaceCam branding band, appended below the photo ---------- */
+  function drawSpaced(ctx, text, x, y, extra) {
+    let cx = x;
+    for (const ch of text) {
+      ctx.fillText(ch, cx, y);
+      cx += ctx.measureText(ch).width + extra;
+    }
+  }
+
+  function isLight(hex) {
+    const h = String(hex || '#ffffff').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55;
+  }
+
+  function withBranding(src, preset, settings) {
+    settings = settings || {};
+    if (settings.branding === false) return src;
+
+    const band = Math.max(30, Math.round(src.height * 0.075));
+    const out = document.createElement('canvas');
+    out.width = src.width;
+    out.height = src.height + band;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+
+    const bg = (preset && preset.frame && preset.frame.color) || '#f6efe1';
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, src.height, src.width, band);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.fillRect(0, src.height, src.width, Math.max(1, Math.round(band * 0.035)));
+
+    const light = isLight(bg);
+    const pad = Math.round(src.width * 0.05);
+    const midY = src.height + band / 2;
+
+    const fs = Math.round(band * 0.44);
+    ctx.font = '700 ' + fs + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = light ? '#141414' : '#f2efe9';
+    drawSpaced(ctx, 'FaceCam', pad, midY, Math.max(1, fs * 0.055));
+
+    const ts = Math.round(band * 0.30);
+    ctx.font = '500 ' + ts + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = light ? 'rgba(20,20,20,0.55)' : 'rgba(242,239,233,0.6)';
+    ctx.fillText(String((preset && (preset.tag || preset.name)) || '').toUpperCase(),
+                 src.width - pad, midY);
+    ctx.textAlign = 'left';
+    return out;
+  }
+
+  /* ---------- double exposure ---------- */
   function blend(a, b) {
     const ctx = a.getContext('2d');
     ctx.save();
@@ -1049,10 +1358,278 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, blend, rand, pick };
+  return { capture, process, withBranding, blend, rand, pick };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }
+
+</script>
+<script>
+/* FaceCam — PRO shooting mode (Blackmagic-Camera-inspired).
+ *
+ * Adds a professional HUD over the live viewfinder:
+ *   - rule-of-thirds grid and a level indicator
+ *   - live luminance histogram
+ *   - focus peaking, zebra (over-exposure), and false-colour, all computed
+ *     from the real preview frames
+ *   - manual ISO / shutter / white-balance / focus controls, applied to the
+ *     actual camera track where the browser exposes them, and clearly marked
+ *     as unsupported where it does not
+ *
+ * Scopes are computed on a small 120x213 analysis canvas, which keeps it fast.
+ */
+const Pro = (() => {
+  const AW = 120, AH = 213;               // analysis resolution
+  let enabled = false;
+  let running = false;
+  let timer = null;
+  let last = 0;
+  let getTrack = () => null;
+
+  let aCanvas, actx, oCanvas, octx, hCanvas, hctx;
+  let caps = {};
+
+  const state = {
+    zebra: false, peaking: false, falseColor: false, grid: true, level: true
+  };
+
+  /* ---------- false-colour ramp (IRE-style) ---------- */
+  const RAMP = [
+    [0.00, [40, 40, 160]], [0.18, [60, 120, 220]], [0.32, [40, 200, 210]],
+    [0.46, [60, 200, 90]], [0.60, [230, 210, 70]], [0.74, [240, 150, 50]],
+    [0.86, [230, 70, 60]], [1.00, [255, 255, 255]]
+  ];
+  function ramp(t) {
+    for (let i = 1; i < RAMP.length; i++) {
+      if (t <= RAMP[i][0]) {
+        const a = RAMP[i - 1], b = RAMP[i];
+        const k = (t - a[0]) / (b[0] - a[0] || 1);
+        return [
+          a[1][0] + (b[1][0] - a[1][0]) * k,
+          a[1][1] + (b[1][1] - a[1][1]) * k,
+          a[1][2] + (b[1][2] - a[1][2]) * k
+        ];
+      }
+    }
+    return [255, 255, 255];
+  }
+
+  /* ---------- device orientation for the level ---------- */
+  let roll = 0;
+  function onOrient(e) {
+    if (e.gamma == null) return;
+    roll = Math.max(-45, Math.min(45, e.gamma));
+    const bar = document.getElementById('pro-level-bar');
+    if (bar) {
+      bar.style.transform = 'rotate(' + (-roll) + 'deg)';
+      bar.style.background = Math.abs(roll) < 1.5 ? '#4ade80' : '#e5e7eb';
+    }
+    const txt = document.getElementById('pro-level-val');
+    if (txt) txt.textContent = (roll >= 0 ? '+' : '') + roll.toFixed(1) + '\u00B0';
+  }
+
+  /* ---------- manual controls ---------- */
+  const CONTROLS = [
+    { key: 'iso', label: 'ISO', min: 50, max: 3200, step: 50, unit: '',
+      fmt: v => Math.round(v) },
+    { key: 'exposureTime', label: 'Shutter', min: 0.0001, max: 0.05, step: 0.0001, unit: 's',
+      fmt: v => (v * 1000).toFixed(1) + 'ms \u00B7 1/' + Math.round(1 / v) },
+    { key: 'colorTemperature', label: 'WB', min: 2500, max: 9000, step: 100, unit: 'K',
+      fmt: v => Math.round(v) + 'K' },
+    { key: 'focusDistance', label: 'Focus', min: 0, max: 10, step: 0.05, unit: '',
+      fmt: v => v.toFixed(2) }
+  ];
+
+  async function applyConstraint(key, value) {
+    const track = getTrack();
+    if (!track || !track.applyConstraints) return false;
+    try {
+      await track.applyConstraints({ advanced: [{ [key]: value }] });
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function buildControls() {
+    const wrap = document.getElementById('pro-controls');
+    if (!wrap) return;
+    const track = getTrack();
+    caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+    wrap.innerHTML = '';
+
+    CONTROLS.forEach(c => {
+      const supported = Array.isArray(caps[c.key]) || typeof caps[c.key] === 'number' ||
+                        (c.key === 'iso' && Array.isArray(caps.iso));
+      const row = document.createElement('div');
+      row.className = 'pro-ctl' + (supported ? '' : ' off');
+      const val = document.createElement('span');
+      val.className = 'pro-ctl-val';
+      val.textContent = supported ? '' : 'n/a';
+      row.innerHTML = '<label>' + c.label + '</label>';
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = c.min; input.max = c.max; input.step = c.step;
+      input.value = (c.min + c.max) / 2;
+      input.disabled = !supported;
+      const show = () => { val.textContent = c.fmt(parseFloat(input.value)); };
+      input.addEventListener('input', () => {
+        show();
+        applyConstraint(c.key, parseFloat(input.value)).then(ok => {
+          if (!ok) val.textContent += ' \u26A0';
+        });
+      });
+      row.appendChild(input);
+      row.appendChild(val);
+      wrap.appendChild(row);
+      if (supported) show();
+    });
+
+    const note = document.getElementById('pro-support-note');
+    if (note) {
+      const any = CONTROLS.some(c => Array.isArray(caps[c.key]) || typeof caps[c.key] === 'number');
+      note.textContent = any
+        ? 'Sliders control the real camera where the browser exposes it.'
+        : 'This browser does not expose manual camera controls \u2014 sliders are inert here. Scopes below are still live.';
+    }
+  }
+
+  /* ---------- the render loop ---------- */
+  function frame() {
+    if (!running) return;
+    const ts = Date.now();
+    if (ts - last < 90) return;            // ~11 fps is plenty for scopes
+    last = ts;
+
+    const video = document.getElementById('video');
+    const demo = document.getElementById('demo-canvas');
+    const src = (demo && demo.style.display === 'block') ? demo : video;
+    if (!src) return;
+    const sw = src.videoWidth || src.width;
+    const sh = src.videoHeight || src.height;
+    if (!sw || !sh) return;
+
+    actx.drawImage(src, 0, 0, AW, AH);
+    const img = actx.getImageData(0, 0, AW, AH);
+    const d = img.data;
+
+    // luminance + histogram
+    const luma = new Uint8ClampedArray(AW * AH);
+    const bins = new Uint32Array(64);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const l = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0;
+      luma[p] = l;
+      bins[Math.min(63, l >> 2)]++;
+    }
+    drawHistogram(bins, AW * AH);
+
+    // overlay: peaking / zebra / false colour
+    const out = octx.createImageData(AW, AH);
+    const o = out.data;
+    const wantOverlay = state.peaking || state.zebra || state.falseColor;
+
+    if (state.falseColor) {
+      for (let p = 0, i = 0; p < luma.length; p++, i += 4) {
+        const c = ramp(luma[p] / 255);
+        o[i] = c[0]; o[i + 1] = c[1]; o[i + 2] = c[2]; o[i + 3] = 235;
+      }
+    } else if (wantOverlay) {
+      for (let y = 0; y < AH; y++) {
+        for (let x = 0; x < AW; x++) {
+          const p = y * AW + x, i = p * 4;
+          o[i + 3] = 0;
+          if (state.zebra && luma[p] > 232) {
+            if (((x + y) % 8) < 4) { o[i] = 255; o[i + 1] = 255; o[i + 2] = 255; o[i + 3] = 150; }
+          }
+          if (state.peaking && x > 0 && y > 0 && x < AW - 1 && y < AH - 1) {
+            const gx = luma[p + 1] - luma[p - 1];
+            const gy = luma[p + AW] - luma[p - AW];
+            const mag = Math.abs(gx) + Math.abs(gy);
+            if (mag > 90) { o[i] = 60; o[i + 1] = 255; o[i + 2] = 120; o[i + 3] = 200; }
+          }
+        }
+      }
+    }
+
+    if (wantOverlay) octx.putImageData(out, 0, 0);
+    else octx.clearRect(0, 0, AW, AH);
+  }
+
+  function drawHistogram(bins, total) {
+    if (!hctx) return;
+    const w = hCanvas.width, h = hCanvas.height;
+    hctx.clearRect(0, 0, w, h);
+    hctx.fillStyle = 'rgba(0,0,0,0.45)';
+    hctx.fillRect(0, 0, w, h);
+    let max = 1;
+    for (let i = 0; i < 64; i++) if (bins[i] > max) max = bins[i];
+    hctx.fillStyle = '#7dd3fc';
+    const bw = w / 64;
+    for (let i = 0; i < 64; i++) {
+      const bh = (bins[i] / max) * (h - 4);
+      hctx.fillRect(i * bw, h - bh, Math.max(1, bw - 1), bh);
+    }
+    hctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    hctx.beginPath(); hctx.moveTo(w / 2, 0); hctx.lineTo(w / 2, h); hctx.stroke();
+  }
+
+  /* ---------- public ---------- */
+  function init(opts) {
+    if (opts && opts.getTrack) getTrack = opts.getTrack;
+
+    aCanvas = document.createElement('canvas'); aCanvas.width = AW; aCanvas.height = AH;
+    actx = aCanvas.getContext('2d', { willReadFrequently: true });
+
+    oCanvas = document.getElementById('pro-canvas');
+    if (oCanvas) { oCanvas.width = AW; oCanvas.height = AH; octx = oCanvas.getContext('2d'); }
+
+    hCanvas = document.getElementById('pro-hist');
+    if (hCanvas) { hCanvas.width = 160; hCanvas.height = 56; hctx = hCanvas.getContext('2d'); }
+
+    document.querySelectorAll('[data-pro-toggle]').forEach(btn => {
+      const key = btn.getAttribute('data-pro-toggle');
+      btn.addEventListener('click', () => {
+        state[key] = !state[key];
+        btn.classList.toggle('on', state[key]);
+        apply();
+      });
+    });
+
+    const grid = document.getElementById('pro-grid');
+    if (grid) grid.style.display = 'block';
+
+    window.addEventListener('deviceorientation', onOrient, true);
+  }
+
+  function apply() {
+    const grid = document.getElementById('pro-grid');
+    if (grid) grid.style.display = state.grid ? 'block' : 'none';
+    const lvl = document.getElementById('pro-level');
+    if (lvl) lvl.style.display = state.level ? 'flex' : 'none';
+    const can = document.getElementById('pro-canvas');
+    if (can) can.style.display = (state.peaking || state.zebra || state.falseColor) ? 'block' : 'none';
+  }
+
+  function setEnabled(v) {
+    enabled = !!v;
+    const hud = document.getElementById('pro-hud');
+    if (hud) hud.classList.toggle('show', enabled);
+    if (enabled) {
+      buildControls();
+      apply();
+      if (!running) { running = true; timer = setInterval(frame, 100); }
+    } else {
+      running = false;
+      if (timer) clearInterval(timer);
+      timer = null;
+      const can = document.getElementById('pro-canvas');
+      if (can) octx && octx.clearRect(0, 0, AW, AH);
+    }
+  }
+
+  function isEnabled() { return enabled; }
+  function refresh() { if (enabled) buildControls(); }
+
+  return { init, setEnabled, isEnabled, refresh };
+})();
 
 </script>
 <script>
@@ -1100,7 +1677,7 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
     setPro(v) { LS.set('pro', !!v); },
     settings() {
       return LS.get('settings', {
-        dateStamp: true, border: true, sound: true, defaultCamera: 'nomo_135_b'
+        dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b'
       });
     },
     saveSettings(s) { LS.set('settings', s); },
@@ -1324,6 +1901,7 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
       $('#cam-fallback').classList.remove('show');
       video.style.display = 'block';
       applyTorch();
+      if (typeof Pro !== 'undefined' && Pro.refresh) Pro.refresh();
     } catch (e) {
       if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
       let why = 'Camera is device par available nahi hai.';
@@ -1479,11 +2057,13 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
       developed.width = canvas.width; developed.height = canvas.height;
       developed.getContext('2d').drawImage(canvas, 0, 0);
       Effects.process(developed, cam, store.settings());
-      state.lastPhoto = { dataUrl: developed.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const devOut = Effects.withBranding(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: devOut.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       runDeveloping();
     } else {
       Effects.process(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const branded = Effects.withBranding(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       if (store.settings().sound) beep();
       openResult();
     }
@@ -1728,6 +2308,7 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
     $('#set-datestamp').checked = !!s.dateStamp;
     $('#set-border').checked = s.border !== false;
     $('#set-sound').checked = !!s.sound;
+    $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
     CAMERAS.forEach(c => {
@@ -1752,7 +2333,8 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
       const canvas = Effects.capture(img, w, h, cam.filter);
       state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
       Effects.process(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const branded = Effects.withBranding(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       openResult();
     };
     img.onerror = () => toast('Ye image load nahi ho payi');
@@ -1814,6 +2396,12 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
     $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
     $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
     $('#btn-paywall').addEventListener('click', openPaywall);
+    $('#btn-pro').addEventListener('click', () => {
+      const on = !Pro.isEnabled();
+      Pro.setEnabled(on);
+      $('#btn-pro').classList.toggle('on', on);
+      toast(on ? 'PRO mode on — scopes live' : 'PRO mode off');
+    });
     $('#shop-pro-banner').addEventListener('click', openPaywall);
     $('#btn-import').addEventListener('click', requestImport);
 
@@ -1844,6 +2432,7 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
     $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
     $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
     $('#set-sound').addEventListener('change', e => { const s = store.settings(); s.sound = e.target.checked; store.saveSettings(s); });
+    $('#set-branding').addEventListener('change', e => { const s = store.settings(); s.branding = e.target.checked; store.saveSettings(s); });
     $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
     $('#set-reset').addEventListener('click', () => {
       if (confirm('App reset karein? Saari settings aur unlocks hat jayenge.')) {
@@ -1883,6 +2472,7 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
     state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera))
       ? s.defaultCamera : 'nomo_135_b';
     bind();
+    Pro.init({ getTrack: () => (state.stream ? state.stream.getVideoTracks()[0] : null) });
     applyLiveLook();
     show('screen-splash');
     setTimeout(() => {

@@ -46,6 +46,27 @@
       <div id="double-chip" class="double-chip"><img alt="First shot"><span>1st shot</span></div>
       <div id="flash-overlay"></div>
 
+      <canvas id="pro-canvas" class="pro-canvas"></canvas>
+      <div id="pro-grid" class="pro-grid"></div>
+      <div id="pro-hud" class="pro-hud">
+        <canvas id="pro-hist" class="pro-hist"></canvas>
+        <div id="pro-level" class="pro-level">
+          <div class="pro-level-track"><div id="pro-level-bar" class="pro-level-bar"></div></div>
+          <span id="pro-level-val">0.0&deg;</span>
+        </div>
+        <div class="pro-row">
+          <div class="pro-toggles">
+            <button class="pro-btn on" data-pro-toggle="grid">Grid</button>
+            <button class="pro-btn on" data-pro-toggle="level">Level</button>
+            <button class="pro-btn" data-pro-toggle="peaking">Peaking</button>
+            <button class="pro-btn" data-pro-toggle="zebra">Zebra</button>
+            <button class="pro-btn" data-pro-toggle="falseColor">False</button>
+          </div>
+          <div id="pro-controls" class="pro-controls"></div>
+        </div>
+        <p id="pro-support-note" class="pro-note"></p>
+      </div>
+
       <div id="cam-fallback" class="cam-fallback">
         <p id="fallback-text">Camera is device par available nahi hai.</p>
         <p class="fine">Demo scene se poora film pipeline test karein, ya gallery se photo import karein.</p>
@@ -58,7 +79,8 @@
       <div class="vf-top">
         <div class="vf-title"><span id="cam-name">FaceCam 135 B</span><small id="cam-tag">35mm Classic</small></div>
         <div class="vf-top-actions">
-          <button class="icon-btn" id="btn-paywall" title="PRO">PRO</button>
+          <button class="icon-btn" id="btn-pro" title="Pro camera mode">M</button>
+          <button class="icon-btn" id="btn-paywall" title="PRO membership">PRO</button>
           <button class="icon-btn" id="btn-settings" title="Settings">&#9881;</button>
         </div>
       </div>
@@ -132,6 +154,7 @@
         <label class="row"><span>Date stamp</span><input type="checkbox" id="set-datestamp"></label>
         <label class="row"><span>Border / frame</span><input type="checkbox" id="set-border"></label>
         <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
+        <label class="row"><span>FaceCam watermark</span><input type="checkbox" id="set-branding"></label>
         <label class="row"><span>Default camera</span><select id="set-default"></select></label>
         <div class="row"><span>Plan</span><strong id="set-pro-state">Free plan</strong></div>
         <button class="link-btn" id="set-reset">Reset app data</button>
@@ -213,6 +236,7 @@
 
 <script src="js/cameras.js"></script>
 <script src="js/effects.js"></script>
+<script src="js/pro.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

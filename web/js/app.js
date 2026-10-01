@@ -42,7 +42,7 @@
     setPro(v) { LS.set('pro', !!v); },
     settings() {
       return LS.get('settings', {
-        dateStamp: true, border: true, sound: true, defaultCamera: 'nomo_135_b'
+        dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b'
       });
     },
     saveSettings(s) { LS.set('settings', s); },
@@ -266,6 +266,7 @@
       $('#cam-fallback').classList.remove('show');
       video.style.display = 'block';
       applyTorch();
+      if (typeof Pro !== 'undefined' && Pro.refresh) Pro.refresh();
     } catch (e) {
       if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
       let why = 'Camera is device par available nahi hai.';
@@ -421,11 +422,13 @@
       developed.width = canvas.width; developed.height = canvas.height;
       developed.getContext('2d').drawImage(canvas, 0, 0);
       Effects.process(developed, cam, store.settings());
-      state.lastPhoto = { dataUrl: developed.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const devOut = Effects.withBranding(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: devOut.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       runDeveloping();
     } else {
       Effects.process(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const branded = Effects.withBranding(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       if (store.settings().sound) beep();
       openResult();
     }
@@ -670,6 +673,7 @@
     $('#set-datestamp').checked = !!s.dateStamp;
     $('#set-border').checked = s.border !== false;
     $('#set-sound').checked = !!s.sound;
+    $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
     CAMERAS.forEach(c => {
@@ -694,7 +698,8 @@
       const canvas = Effects.capture(img, w, h, cam.filter);
       state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
       Effects.process(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const branded = Effects.withBranding(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: branded.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       openResult();
     };
     img.onerror = () => toast('Ye image load nahi ho payi');
@@ -756,6 +761,12 @@
     $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
     $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
     $('#btn-paywall').addEventListener('click', openPaywall);
+    $('#btn-pro').addEventListener('click', () => {
+      const on = !Pro.isEnabled();
+      Pro.setEnabled(on);
+      $('#btn-pro').classList.toggle('on', on);
+      toast(on ? 'PRO mode on — scopes live' : 'PRO mode off');
+    });
     $('#shop-pro-banner').addEventListener('click', openPaywall);
     $('#btn-import').addEventListener('click', requestImport);
 
@@ -786,6 +797,7 @@
     $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
     $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
     $('#set-sound').addEventListener('change', e => { const s = store.settings(); s.sound = e.target.checked; store.saveSettings(s); });
+    $('#set-branding').addEventListener('change', e => { const s = store.settings(); s.branding = e.target.checked; store.saveSettings(s); });
     $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
     $('#set-reset').addEventListener('click', () => {
       if (confirm('App reset karein? Saari settings aur unlocks hat jayenge.')) {
@@ -825,6 +837,7 @@
     state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera))
       ? s.defaultCamera : 'nomo_135_b';
     bind();
+    Pro.init({ getTrack: () => (state.stream ? state.stream.getVideoTracks()[0] : null) });
     applyLiveLook();
     show('screen-splash');
     setTimeout(() => {

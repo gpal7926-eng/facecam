@@ -1,6 +1,7 @@
 {
   "id": "eats",
   "name": "EATS",
+  "tag": "Instant Snapshot",
   "description": "Food-photo film, vivid and warm.",
   "colorMatrix": [
     1.2754,

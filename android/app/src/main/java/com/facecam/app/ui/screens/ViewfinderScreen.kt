@@ -28,12 +28,15 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +57,13 @@ import com.facecam.app.camera.CameraController
 import com.facecam.app.camera.FlashMode
 import com.facecam.app.camera.LensFacing
 import com.facecam.app.camera.SelfTimer
+import com.facecam.app.camera.pro.LevelSensor
+import com.facecam.app.camera.pro.OverlayMode
+import com.facecam.app.camera.pro.ProCameraController
+import com.facecam.app.camera.pro.ProCapabilities
+import com.facecam.app.camera.pro.ProControlsPanel
+import com.facecam.app.camera.pro.ProFrameProcessor
+import com.facecam.app.camera.pro.ProHudOverlay
 import com.facecam.app.ui.FaceCamViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -82,6 +92,16 @@ fun ViewfinderScreen(
     var showPicker by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
 
+    // ---- PRO mode wiring (opt-in) ----
+    val proState by viewModel.proState.collectAsState()
+    val proController = remember { ProCameraController() }
+    val levelSensor = remember { LevelSensor(context) }
+    val frameProcessor = remember { ProFrameProcessor() }
+    val histogram by frameProcessor.histogram.collectAsState()
+    val proOverlay by frameProcessor.overlay.collectAsState()
+    val roll by levelSensor.roll.collectAsState()
+    var proCaps by remember { mutableStateOf(ProCapabilities.UNSUPPORTED) }
+
     val cameraController = remember { CameraController(context) }
     val previewView = remember { PreviewView(context) }
 
@@ -95,6 +115,35 @@ fun ViewfinderScreen(
     }
     LaunchedEffect(cameraState.flash) {
         cameraController.setFlash(cameraState.flash)
+    }
+
+    // Attach the PRO controller once the camera is bound, then push state to it.
+    LaunchedEffect(proState, cameraState.cameraReady, cameraState.lensFacing) {
+        if (cameraState.cameraReady) {
+            val cam = cameraController.currentCamera()
+            val info = cameraController.currentCameraInfo()
+            if (cam != null && info != null) {
+                proController.attach(cam, info)
+                proCaps = proController.capabilities
+            }
+        }
+        proController.applyState(proState)
+        val mode = when {
+            !proState.enabled -> OverlayMode.NONE
+            proState.falseColor -> OverlayMode.FALSE_COLOR
+            proState.focusPeaking -> OverlayMode.PEAKING
+            proState.zebra -> OverlayMode.ZEBRA
+            else -> OverlayMode.NONE
+        }
+        frameProcessor.mode = mode
+        frameProcessor.enabled = proState.enabled && mode != OverlayMode.NONE
+        cameraController.setFrameAnalyzer(if (proState.enabled) frameProcessor else null)
+    }
+
+    // The accelerometer only runs while PRO is on.
+    DisposableEffect(proState.enabled) {
+        if (proState.enabled) levelSensor.start() else levelSensor.stop()
+        onDispose { levelSensor.stop() }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -121,6 +170,16 @@ fun ViewfinderScreen(
                 .background(tint)
         )
 
+        // Live PRO HUD: grid, level, histogram and live overlays.
+        if (proState.enabled) {
+            ProHudOverlay(
+                state = proState,
+                histogram = histogram,
+                roll = roll,
+                overlay = proOverlay
+            )
+        }
+
         // Top control bar.
         Row(
             modifier = Modifier
@@ -133,7 +192,19 @@ fun ViewfinderScreen(
             IconButton(onClick = onOpenSettings) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
             }
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { viewModel.toggleProMode() }) {
+                    Icon(
+                        Icons.Filled.Tune,
+                        contentDescription = "Pro mode",
+                        tint = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White
+                    )
+                    Text(
+                        text = "PRO",
+                        color = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 IconButton(onClick = onOpenShop) {
                     Icon(Icons.Filled.ShoppingCart, contentDescription = "Camera shop", tint = Color.White)
                 }
@@ -253,6 +324,18 @@ fun ViewfinderScreen(
                     Icon(Icons.Filled.Cameraswitch, contentDescription = "Switch camera", tint = Color.White)
                 }
             }
+        }
+
+        // PRO manual-control panel (only when PRO is enabled).
+        if (proState.enabled) {
+            ProControlsPanel(
+                state = proState,
+                capabilities = proCaps,
+                onUpdate = { transform -> viewModel.updateProState(transform) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 160.dp)
+            )
         }
 
         if (showPicker) {

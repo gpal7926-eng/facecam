@@ -1,6 +1,7 @@
 {
   "id": "toy_k",
   "name": "TOY K",
+  "tag": "Toy Colour",
   "description": "Toy camera, cool cyan cast and leaks.",
   "colorMatrix": [
     0.969,

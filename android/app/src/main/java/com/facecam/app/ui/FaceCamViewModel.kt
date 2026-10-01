@@ -13,6 +13,7 @@ import com.facecam.app.camera.CameraUiState
 import com.facecam.app.camera.FlashMode
 import com.facecam.app.camera.LensFacing
 import com.facecam.app.camera.SelfTimer
+import com.facecam.app.camera.pro.ProState
 import com.facecam.app.film.AnalogEffects
 import com.facecam.app.film.DateStampRenderer
 import com.facecam.app.film.DevelopingController
@@ -70,6 +71,20 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+
+    // ---- PRO camera mode (opt-in; simple mode is untouched) ----
+    private val _proState = MutableStateFlow(ProState())
+    val proState: StateFlow<ProState> = _proState.asStateFlow()
+
+    /** Turn the Blackmagic-style PRO HUD on or off. */
+    fun toggleProMode() {
+        _proState.value = _proState.value.copy(enabled = !_proState.value.enabled)
+    }
+
+    /** Generic mutator used by every PRO control in the HUD. */
+    fun updateProState(transform: (ProState) -> ProState) {
+        _proState.value = transform(_proState.value)
+    }
 
     /** For the double-exposure flow. */
     private var pendingDoubleExposureBase: Bitmap? = null
@@ -172,6 +187,7 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
         val preset = _selectedCamera.value ?: return
         val dateStampOn = settingsStore.dateStamp && preset.dateStamp
         val borderOn = settingsStore.border
+        val brandingOn = settingsStore.branding
         val skipWait = proStore.isPro || !preset.instant
 
         viewModelScope.launch {
@@ -196,7 +212,8 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
             val options = AnalogEffects.Options(
                 preset = preset,
                 border = borderOn,
-                dateStamp = dateStampOn
+                dateStamp = dateStampOn,
+                branding = brandingOn
             )
             val developed = AnalogEffects.develop(
                 source = source,
