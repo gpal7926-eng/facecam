@@ -40,13 +40,17 @@
   <section class="screen" id="screen-viewfinder">
     <div class="vf">
       <video id="video" playsinline autoplay muted></video>
+      <canvas id="demo-canvas"></canvas>
       <div id="live-vignette" class="live-vignette"></div>
       <div id="live-frame" class="live-frame"></div>
+      <div id="double-chip" class="double-chip"><img alt="First shot"><span>1st shot</span></div>
+      <div id="flash-overlay"></div>
 
       <div id="cam-fallback" class="cam-fallback">
-        <p>Camera is device par available nahi hai.</p>
-        <p class="fine">Gallery se ek photo import karke film look test kar sakte hain.</p>
-        <button class="btn primary" id="fallback-pick">Photo choose karein</button>
+        <p id="fallback-text">Camera is device par available nahi hai.</p>
+        <p class="fine">Demo scene se poora film pipeline test karein, ya gallery se photo import karein.</p>
+        <button class="btn primary" id="fallback-demo">Demo scene try karein</button>
+        <button class="btn" id="fallback-pick">Photo import karein (PRO)</button>
       </div>
 
       <div id="countdown" class="countdown"></div>
@@ -91,10 +95,12 @@
   <section class="screen" id="screen-result">
     <div class="result-wrap">
       <img id="result-img" alt="Result">
+      <p class="result-cam" id="result-cam"></p>
       <div class="result-actions">
         <button class="btn" id="result-retake">Retake</button>
         <button class="btn primary" id="result-save">Save</button>
         <button class="btn" id="result-share">Share</button>
+        <button class="btn" id="btn-before">Original</button>
       </div>
       <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
     </div>
@@ -104,7 +110,7 @@
   <section class="screen" id="screen-gallery">
     <div class="topbar">
       <button class="icon-btn" data-back="viewfinder">&#8592;</button>
-      <h1>Gallery</h1>
+      <h1>Gallery<small id="gallery-count"></small></h1>
       <span></span>
     </div>
     <div class="screen-body">

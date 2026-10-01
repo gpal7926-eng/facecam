@@ -1,7 +1,12 @@
-/* FaceCam — web preview app.
- * Mirrors the Android app's feature set. All state lives on-device:
+/* FaceCam — web preview app (HTML / CSS / JavaScript).
+ *
+ * Mirrors the Android app's feature set and is fully self-contained: no build
+ * step, no dependencies, no network calls.
+ *
  *   localStorage  -> settings, owned cameras, PRO flag, save counter
  *   IndexedDB     -> captured photos
+ *   getUserMedia  -> live viewfinder   (falls back to a built-in demo scene)
+ *   <canvas>      -> the whole film pipeline
  */
 (function () {
   'use strict';
@@ -55,65 +60,122 @@
    * ------------------------------------------------------------------ */
   const Photos = {
     db: null,
+    mem: [],
+    nextId: 1,
+    useMem: false,
+
+    /* Opens IndexedDB, but never blocks or hangs the UI: if the database is
+       unavailable (private mode, blocked storage, old browser) we silently
+       fall back to an in-memory store so the gallery still works. */
     open() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open('facecam', 1);
+      return new Promise((resolve) => {
+        if (!window.indexedDB) { this.useMem = true; resolve(null); return; }
+        let settled = false;
+        const giveUp = setTimeout(() => {
+          if (!settled) { settled = true; this.useMem = true; resolve(null); }
+        }, 4000);
+        let req;
+        try { req = indexedDB.open('facecam', 1); }
+        catch (e) { clearTimeout(giveUp); this.useMem = true; resolve(null); return; }
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains('photos')) {
             db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
           }
         };
-        req.onsuccess = () => { this.db = req.result; resolve(this.db); };
-        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          this.db = req.result;
+          clearTimeout(giveUp);
+          if (!settled) { settled = true; resolve(this.db); }
+        };
+        req.onerror = () => {
+          clearTimeout(giveUp);
+          this.useMem = true;
+          if (!settled) { settled = true; resolve(null); }
+        };
       });
     },
-    tx(mode) { return this.db.transaction('photos', mode).objectStore('photos'); },
+
+    /* Write-through: every photo is kept in memory straight away (so the
+       gallery is instant and never blocks), and mirrored into IndexedDB for
+       persistence across reloads. If IndexedDB misbehaves, the session still
+       works — only cross-reload persistence is lost. */
     add(photo) {
-      return new Promise((resolve, reject) => {
-        const r = this.tx('readwrite').add(photo);
-        r.onsuccess = () => resolve(r.result);
-        r.onerror = () => reject(r.error);
-      });
+      const rec = Object.assign({}, photo, { id: this.nextId++ });
+      this.mem.push(rec);
+      if (this.db) {
+        try {
+          this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo);
+        } catch (e) { /* ignore — memory copy already holds it */ }
+      }
+      return Promise.resolve(rec.id);
     },
+
     all() {
-      return new Promise((resolve, reject) => {
-        const r = this.tx('readonly').getAll();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror = () => reject(r.error);
+      return new Promise((resolve) => {
+        const merge = (extra) => {
+          const byKey = {};
+          this.mem.forEach(p => { byKey[String(p.ts)] = p; });
+          (extra || []).forEach(p => { byKey[String(p.ts)] = p; });
+          resolve(Object.keys(byKey).map(k => byKey[k]).sort((a, b) => b.ts - a.ts));
+        };
+        if (!this.db) { merge([]); return; }
+        let settled = false;
+        const giveUp = setTimeout(() => { if (!settled) { settled = true; merge([]); } }, 1500);
+        try {
+          const r = this.db.transaction('photos', 'readonly').objectStore('photos').getAll();
+          r.onsuccess = () => { if (!settled) { settled = true; clearTimeout(giveUp); merge(r.result || []); } };
+          r.onerror = () => { if (!settled) { settled = true; clearTimeout(giveUp); merge([]); } };
+        } catch (e) { clearTimeout(giveUp); merge([]); }
       });
     },
+
     del(id) {
-      return new Promise((resolve, reject) => {
-        const r = this.tx('readwrite').delete(id);
-        r.onsuccess = () => resolve();
-        r.onerror = () => reject(r.error);
-      });
+      this.mem = this.mem.filter(p => p.id !== id);
+      if (this.db) {
+        try { this.db.transaction('photos', 'readwrite').objectStore('photos').delete(id); }
+        catch (e) { /* ignore */ }
+      }
+      return Promise.resolve();
     }
   };
 
   /* ------------------------------------------------------------------ *
-   * App state + helpers
+   * App state + small helpers
    * ------------------------------------------------------------------ */
   const state = {
     cameraId: 'nomo_135_b',
     facing: 'environment',
     flash: false,
+    torchAvailable: false,
     timer: 0,
     stream: null,
-    streamFacing: null,
+    demo: false,
+    demoSource: null,
     lastPhoto: null,
+    lastOriginal: null,
+    showingOriginal: false,
     double: false,
     firstShot: null,
     pendingTimer: null,
-    fallbackSource: null,
-    camSupported: true
+    busy: false,
+    camGen: 0
   };
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
   const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
   const rupee = (n) => '\u20B9' + n;
+
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('camera-timeout')), ms);
+      promise.then(
+        v => { clearTimeout(t); resolve(v); },
+        e => { clearTimeout(t); reject(e); }
+      );
+    });
+  }
 
   function toast(msg) {
     const t = $('#toast');
@@ -123,38 +185,101 @@
     t._h = setTimeout(() => t.classList.remove('show'), 1900);
   }
 
-  /* ------------------------------------------------------------------ *
-   * Screens
-   * ------------------------------------------------------------------ */
   function show(id) {
     $$('.screen').forEach(s => s.classList.toggle('active', s.id === id));
     document.body.dataset.screen = id;
+    if (id !== 'screen-viewfinder' && state.pendingTimer) {
+      clearInterval(state.pendingTimer);
+      state.pendingTimer = null;
+      $('#countdown').classList.remove('show');
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Built-in demo scene (used when no camera is available, so the whole
+   * pipeline — shutter, film effects, save, gallery — still works)
+   * ------------------------------------------------------------------ */
+  function drawSampleScene(canvas) {
+    canvas.width = 540; canvas.height = 960;
+    const g = canvas.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 960);
+    grad.addColorStop(0, '#1d3d72');
+    grad.addColorStop(0.42, '#e2814a');
+    grad.addColorStop(0.62, '#f7c46d');
+    grad.addColorStop(1, '#6b4a3a');
+    g.fillStyle = grad; g.fillRect(0, 0, 540, 960);
+
+    g.beginPath(); g.arc(355, 330, 150, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,220,140,0.20)'; g.fill();
+    g.beginPath(); g.arc(355, 330, 92, 0, Math.PI * 2);
+    g.fillStyle = '#fff3cd'; g.fill();
+
+    g.fillStyle = '#4b3a55';
+    g.beginPath(); g.moveTo(-40, 700); g.lineTo(190, 470); g.lineTo(430, 700); g.closePath(); g.fill();
+    g.fillStyle = '#38293f';
+    g.beginPath(); g.moveTo(250, 720); g.lineTo(470, 520); g.lineTo(640, 720); g.closePath(); g.fill();
+    g.fillStyle = '#241c2c'; g.fillRect(0, 690, 540, 270);
+
+    for (let i = 0; i < 5; i++) {
+      const x = 60 + i * 105, y = 690;
+      g.fillStyle = '#2f2438'; g.fillRect(x - 4, y - 40, 8, 45);
+      g.beginPath(); g.arc(x, y - 52, 22, 0, Math.PI * 2);
+      g.fillStyle = '#3d6b4f'; g.fill();
+    }
+
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.font = '600 26px -apple-system, Segoe UI, sans-serif';
+    g.fillText('13:42', 40, 70);
+
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    g.font = '600 17px -apple-system, Segoe UI, sans-serif';
+    g.fillText('FaceCam demo scene', 40, 930);
   }
 
   /* ------------------------------------------------------------------ *
    * Camera
    * ------------------------------------------------------------------ */
   async function startCamera() {
+    const gen = ++state.camGen;   // invalidates any earlier in-flight attempt
     stopCamera();
+    state.demo = false;
+    $('#demo-canvas').style.display = 'none';
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      state.camSupported = false;
-      $('#cam-fallback').classList.add('show');
+      showFallback('Is browser mein camera support nahi hai.');
       return;
     }
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: state.facing }, audio: false
-      });
-      state.streamFacing = state.facing;
+      const stream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: state.facing, width: { ideal: 1440 }, height: { ideal: 1920 } },
+          audio: false
+        }),
+        7000
+      );
+      if (!stream || !stream.getVideoTracks().length) throw new Error('no-video-track');
+      if (gen !== state.camGen) { stream.getTracks().forEach(t => t.stop()); return; }
+      state.stream = stream;
       const video = $('#video');
-      video.srcObject = state.stream;
+      video.srcObject = stream;
       await video.play().catch(() => {});
       $('#cam-fallback').classList.remove('show');
-      state.camSupported = true;
+      video.style.display = 'block';
+      applyTorch();
     } catch (e) {
-      state.camSupported = false;
-      $('#cam-fallback').classList.add('show');
+      if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
+      let why = 'Camera is device par available nahi hai.';
+      if (e && e.name === 'NotAllowedError') why = 'Camera permission deny ho gayi.';
+      else if (e && e.name === 'NotFoundError') why = 'Koi camera nahi mila.';
+      else if (e && e.message === 'camera-timeout') why = 'Camera start nahi ho paya (timeout).';
+      showFallback(why);
     }
+  }
+
+  function showFallback(reason) {
+    $('#fallback-text').textContent = reason;
+    $('#cam-fallback').classList.add('show');
+    $('#video').style.display = 'none';
   }
 
   function stopCamera() {
@@ -162,107 +287,81 @@
       state.stream.getTracks().forEach(t => t.stop());
       state.stream = null;
     }
+    state.torchAvailable = false;
+  }
+
+  /* Real torch if the device exposes it, otherwise we fall back to a
+     screen-flash at capture time. */
+  async function applyTorch() {
+    if (!state.stream) return;
+    const track = state.stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    if (caps && caps.torch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: state.flash }] });
+        state.torchAvailable = true;
+        return;
+      } catch (e) { /* fall through to screen flash */ }
+    }
+    state.torchAvailable = false;
+  }
+
+  function startDemo() {
+    state.camGen++;   // cancel any pending camera attempt so it can't clobber this
+    const cv = $('#demo-canvas');
+    if (!cv.dataset.drawn) { drawSampleScene(cv); cv.dataset.drawn = '1'; }
+    cv.style.display = 'block';
+    $('#video').style.display = 'none';
+    $('#cam-fallback').classList.remove('show');
+    state.demo = true;
+    state.demoSource = cv;
+    applyLiveLook();
+    toast('Demo scene ready — shutter dabayein');
   }
 
   function applyLiveLook() {
     const cam = cameraById(state.cameraId);
-    const video = $('#video');
-    video.style.filter = cam.filter;
-    const vig = $('#live-vignette');
-    vig.style.opacity = Math.min(0.85, cam.vignette * 0.8).toFixed(2);
-    $('#live-frame').className = 'live-frame ' + (cam.frame ? cam.frame.style : '');
-    $('#live-frame').style.setProperty('--frame-color', cam.frame ? cam.frame.color : '#fff');
+    $('#video').style.filter = cam.filter;
+    $('#demo-canvas').style.filter = cam.filter;
+    $('#live-vignette').style.opacity = Math.min(0.85, cam.vignette * 0.8).toFixed(2);
+    const frameEl = $('#live-frame');
+    frameEl.className = 'live-frame ' + (cam.frame ? cam.frame.style : '');
+    frameEl.style.setProperty('--frame-color', cam.frame ? cam.frame.color : '#fff');
     $('#cam-name').textContent = cam.name;
     $('#cam-tag').textContent = cam.tag;
   }
 
+  function hasSource() { return !!state.stream || state.demo; }
+
   /* ------------------------------------------------------------------ *
    * Capture
    * ------------------------------------------------------------------ */
-  function grabCanvas() {
-    const video = $('#video');
+  function grabCanvas(extraFilter) {
     const cam = cameraById(state.cameraId);
-    let w = video.videoWidth || 1080;
-    let h = video.videoHeight || 1440;
-    // keep a sensible cap so canvas work stays fast
+    const source = state.demo ? state.demoSource : $('#video');
+    let w = source.videoWidth || source.width || 1080;
+    let h = source.videoHeight || source.height || 1440;
     const maxDim = 1400;
     if (Math.max(w, h) > maxDim) {
       const s = maxDim / Math.max(w, h);
       w = Math.round(w * s); h = Math.round(h * s);
     }
-    const source = state.fallbackSource || video;
-    return Effects.capture(source, w, h, cam.filter);
+    return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
   }
 
-  function shoot() {
-    const cam = cameraById(state.cameraId);
-    if (cam.instant && !store.isPro()) {
-      runDeveloping(cam);
-    } else {
-      finishShot(cam);
-    }
+  function screenFlash() {
+    const f = $('#flash-overlay');
+    f.classList.add('go');
+    setTimeout(() => f.classList.remove('go'), 220);
   }
 
-  function finishShot(cam) {
-    let canvas = grabCanvas();
-    if (state.double) {
-      if (!state.firstShot) {
-        state.firstShot = canvas;
-        toast('Double exposure: pehla shot le liya. Ab dusra lein.');
-        return;
-      }
-      canvas = Effects.blend(state.firstShot, canvas);
-      state.firstShot = null;
-      state.double = false;
-      $('#btn-double').classList.remove('on');
-    }
-    Effects.process(canvas, cam, store.settings());
-    if (store.settings().sound) beep();
-    state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
-    const img = $('#result-img');
-    img.src = state.lastPhoto.dataUrl;
-    img.style.filter = 'none';
-    show('screen-result');
-  }
-
-  function runDeveloping(cam) {
-    const canvas = grabCanvas();
-    Effects.process(canvas, cam, store.settings());
-    state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
-    const img = $('#dev-img');
-    img.src = state.lastPhoto.dataUrl;
-    img.classList.remove('developed');
-    show('screen-developing');
-    setTimeout(() => {
-      img.classList.add('developed');
-      setTimeout(() => {
-        const r = $('#result-img');
-        r.src = state.lastPhoto.dataUrl;
-        r.style.filter = 'none';
-        show('screen-result');
-      }, 1200);
-    }, 2600);
-  }
-
-  function beep() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'square';
-      o.frequency.value = 880;
-      g.gain.value = 0.05;
-      o.connect(g); g.connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + 0.05);
-      setTimeout(() => ctx.close(), 200);
-    } catch (e) {}
-  }
-
-  /* ------------------------------------------------------------------ *
-   * Shutter with timer
-   * ------------------------------------------------------------------ */
   function shutterPressed() {
+    if (state.busy) return;
+    if (!hasSource()) {
+      toast('Pehle camera on karein ya demo scene chalayein');
+      return;
+    }
     if (state.timer > 0) {
       let n = state.timer;
       const overlay = $('#countdown');
@@ -282,6 +381,98 @@
     } else {
       shoot();
     }
+  }
+
+  function shoot() {
+    if (state.busy || !hasSource()) return;
+    state.busy = true;
+    setTimeout(() => { state.busy = false; }, 350);
+
+    const cam = cameraById(state.cameraId);
+    const useFlash = state.flash && !state.torchAvailable;
+    if (state.flash) screenFlash();
+
+    const raw = grabCanvas(useFlash ? ' brightness(1.35) contrast(1.05)' : '');
+    state.lastOriginal = raw.toDataURL('image/jpeg', 0.9);
+
+    if (state.double) {
+      if (!state.firstShot) {
+        state.firstShot = raw;
+        const chip = $('#double-chip');
+        chip.querySelector('img').src = state.lastOriginal;
+        chip.classList.add('show');
+        toast('Double exposure: pehla shot ho gaya — ab dusra lein');
+        return;
+      }
+      const merged = Effects.blend(state.firstShot, raw);
+      state.firstShot = null;
+      $('#double-chip').classList.remove('show');
+      state.double = false;
+      $('#btn-double').classList.remove('on');
+      afterCapture(cam, merged);
+      return;
+    }
+    afterCapture(cam, raw);
+  }
+
+  function afterCapture(cam, canvas) {
+    if (cam.instant && !store.isPro()) {
+      const developed = canvas.cloneNode(false);
+      developed.width = canvas.width; developed.height = canvas.height;
+      developed.getContext('2d').drawImage(canvas, 0, 0);
+      Effects.process(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: developed.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      runDeveloping();
+    } else {
+      Effects.process(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      if (store.settings().sound) beep();
+      openResult();
+    }
+  }
+
+  function runDeveloping() {
+    const img = $('#dev-img');
+    img.src = state.lastPhoto.dataUrl;
+    img.classList.remove('developed');
+    show('screen-developing');
+    setTimeout(() => {
+      img.classList.add('developed');
+      setTimeout(openResult, 1300);
+    }, 2500);
+  }
+
+  function openResult() {
+    state.showingOriginal = false;
+    const img = $('#result-img');
+    img.src = state.lastPhoto.dataUrl;
+    $('#result-cam').textContent = state.lastPhoto.camName;
+    $('#btn-before').textContent = 'Original';
+    $('#btn-before').classList.remove('on');
+    show('screen-result');
+  }
+
+  function toggleBefore() {
+    if (!state.lastPhoto) return;
+    state.showingOriginal = !state.showingOriginal;
+    $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.lastPhoto.dataUrl;
+    $('#btn-before').textContent = state.showingOriginal ? 'Film' : 'Original';
+    $('#btn-before').classList.toggle('on', state.showingOriginal);
+  }
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.05);
+      setTimeout(() => ctx.close(), 200);
+    } catch (e) {}
   }
 
   /* ------------------------------------------------------------------ *
@@ -335,13 +526,16 @@
   /* ------------------------------------------------------------------ *
    * Gallery
    * ------------------------------------------------------------------ */
-  async function renderGallery() {
+  function paintGallery(photos) {
     const grid = $('#gallery-grid');
-    const photos = (await Photos.all().catch(() => [])).sort((a, b) => b.ts - a.ts);
+    photos.sort((a, b) => b.ts - a.ts);
     grid.innerHTML = '';
+    $('#gallery-count').textContent = photos.length ? ' \u00B7 ' + photos.length : '';
     $('#gallery-empty').style.display = photos.length ? 'none' : 'block';
+
     const groups = {};
     photos.forEach(p => { (groups[p.camName] = groups[p.camName] || []).push(p); });
+
     Object.keys(groups).forEach(name => {
       const h = document.createElement('div');
       h.className = 'gallery-group-title';
@@ -355,6 +549,7 @@
         grid.appendChild(cell);
       });
     });
+
     if (photos.length) {
       const clear = document.createElement('button');
       clear.className = 'link-btn danger';
@@ -362,7 +557,7 @@
       clear.style.gridColumn = '1 / -1';
       clear.addEventListener('click', async () => {
         if (confirm('Poori gallery delete karein?')) {
-          for (const p of photos) await Photos.del(p.id);
+          for (const p of photos) { try { await Photos.del(p.id); } catch (e) {} }
           renderGallery();
         }
       });
@@ -370,13 +565,19 @@
     }
   }
 
+  /* Paint instantly from the in-memory copy so the gallery never waits on
+     storage, then refresh once the database answers. */
+  function renderGallery() {
+    paintGallery(Photos.mem.slice());
+    Photos.all().then(list => paintGallery(list)).catch(() => {});
+  }
+
   function openPhoto(p) {
     $('#viewer-img').src = p.dataUrl;
-    const viewer = $('#viewer');
-    viewer.classList.add('show');
+    $('#viewer').classList.add('show');
     $('#viewer-delete').onclick = async () => {
-      await Photos.del(p.id);
-      viewer.classList.remove('show');
+      try { await Photos.del(p.id); } catch (e) {}
+      $('#viewer').classList.remove('show');
       renderGallery();
     };
     $('#viewer-share').onclick = async () => {
@@ -390,7 +591,7 @@
       } catch (e) {}
       download(p.dataUrl, 'FaceCam_' + p.ts + '.jpg');
     };
-    $('#viewer-close').onclick = () => viewer.classList.remove('show');
+    $('#viewer-close').onclick = () => $('#viewer').classList.remove('show');
   }
 
   /* ------------------------------------------------------------------ *
@@ -409,7 +610,7 @@
         (owned ? '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Owned') + '</span>'
                : '<span class="pi-state locked">' + rupee(cam.price) + '</span>');
       item.addEventListener('click', () => {
-        if (!owned) { toast('Pehle ise shop se unlock karein'); openShop(); return; }
+        if (!owned) { toast('Pehle ise shop se unlock karein'); closeSheet('#sheet-picker'); openShop(); return; }
         selectCamera(cam.id);
         closeSheet('#sheet-picker');
       });
@@ -435,12 +636,10 @@
       const btn = card.querySelector('.buy-btn');
       btn.addEventListener('click', () => {
         if (owned) { selectCamera(cam.id); show('screen-viewfinder'); return; }
-        if (cam.paid) {
-          if (store.isPro()) { store.grant(cam.id); renderShop(); renderPicker(); toast('Unlocked'); }
-          else { openPaywall(); }
-        } else {
-          store.grant(cam.id); renderShop(); renderPicker(); toast(cam.name + ' unlocked');
-        }
+        if (cam.paid && !store.isPro()) { openPaywall(); return; }
+        store.grant(cam.id);
+        renderShop(); renderPicker();
+        toast(cam.name + ' unlocked');
       });
       grid.appendChild(card);
     });
@@ -456,12 +655,10 @@
     s.defaultCamera = id;
     store.saveSettings(s);
     applyLiveLook();
-    renderPicker();
   }
 
   function openShop() { renderShop(); show('screen-shop'); }
   function openPaywall() { show('screen-paywall'); }
-
   function closeSheet(sel) { const el = $(sel); if (el) el.classList.remove('show'); }
   function openSheet(sel) { const el = $(sel); if (el) el.classList.add('show'); }
 
@@ -495,12 +692,18 @@
       const maxDim = 1400;
       if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
       const canvas = Effects.capture(img, w, h, cam.filter);
+      state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
       Effects.process(canvas, cam, store.settings());
       state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
-      $('#result-img').src = state.lastPhoto.dataUrl;
-      show('screen-result');
+      openResult();
     };
+    img.onerror = () => toast('Ye image load nahi ho payi');
     img.src = URL.createObjectURL(file);
+  }
+
+  function requestImport() {
+    if (!store.isPro()) { openPaywall(); toast('Import PRO feature hai'); return; }
+    $('#import-input').click();
   }
 
   /* ------------------------------------------------------------------ *
@@ -509,22 +712,28 @@
   function bind() {
     $('#btn-onboard').addEventListener('click', async () => {
       store.markSeen();
-      await startCamera();
       show('screen-viewfinder');
+      await startCamera();
+      applyLiveLook();
     });
 
     $('#btn-shutter').addEventListener('click', shutterPressed);
 
     $('#btn-switch').addEventListener('click', async () => {
+      if (state.demo) { toast('Demo mode mein camera switch nahi hota'); return; }
       state.facing = state.facing === 'environment' ? 'user' : 'environment';
       await startCamera();
       applyLiveLook();
+      toast(state.facing === 'user' ? 'Front camera' : 'Back camera');
     });
 
-    $('#btn-flash').addEventListener('click', () => {
+    $('#btn-flash').addEventListener('click', async () => {
       state.flash = !state.flash;
       $('#btn-flash').classList.toggle('on', state.flash);
-      toast(state.flash ? 'Flash on' : 'Flash off');
+      if (state.flash) await applyTorch();
+      toast(state.flash
+        ? (state.torchAvailable ? 'Flash (torch) on' : 'Flash on — screen flash')
+        : 'Flash off');
     });
 
     $('#btn-timer').addEventListener('click', () => {
@@ -536,29 +745,33 @@
     $('#btn-double').addEventListener('click', () => {
       state.double = !state.double;
       state.firstShot = null;
+      $('#double-chip').classList.remove('show');
       $('#btn-double').classList.toggle('on', state.double);
-      toast(state.double ? 'Double exposure ON — 2 shots' : 'Double exposure off');
+      toast(state.double ? 'Double exposure ON — 2 shots lein' : 'Double exposure off');
     });
 
     $('#btn-picker').addEventListener('click', () => { renderPicker(); openSheet('#sheet-picker'); });
     $('#btn-shop').addEventListener('click', openShop);
-    $('#btn-gallery').addEventListener('click', async () => { await renderGallery(); show('screen-gallery'); });
+    /* Navigate immediately, then fill the grid — never block the UI on storage. */
+    $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
     $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
     $('#btn-paywall').addEventListener('click', openPaywall);
     $('#shop-pro-banner').addEventListener('click', openPaywall);
+    $('#btn-import').addEventListener('click', requestImport);
 
     $$('[data-back]').forEach(b => b.addEventListener('click', () => {
       const target = b.getAttribute('data-back');
-      if (target === 'viewfinder' && !state.stream) startCamera();
       show('screen-' + target);
+      if (target === 'viewfinder') { applyLiveLook(); }
     }));
 
     $$('[data-close-sheet]').forEach(b => b.addEventListener('click', () => closeSheet('#' + b.getAttribute('data-close-sheet'))));
     $$('.sheet-backdrop').forEach(b => b.addEventListener('click', () => b.parentElement.classList.remove('show')));
 
-    $('#result-retake').addEventListener('click', () => show('screen-viewfinder'));
+    $('#result-retake').addEventListener('click', () => { show('screen-viewfinder'); applyLiveLook(); });
     $('#result-save').addEventListener('click', savePhoto);
     $('#result-share').addEventListener('click', sharePhoto);
+    $('#btn-before').addEventListener('click', toggleBefore);
 
     $('#paywall-buy').addEventListener('click', () => {
       store.setPro(true);
@@ -581,21 +794,23 @@
     });
 
     $('#import-input').addEventListener('change', e => {
-      if (!store.isPro()) { toast('Import PRO feature hai'); openPaywall(); return; }
       const f = e.target.files[0];
       if (f) importPhoto(f);
       e.target.value = '';
     });
-    $('#btn-import').addEventListener('click', () => {
-      if (!store.isPro()) { openPaywall(); return; }
-      $('#import-input').click();
-    });
 
-    $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
+    $('#fallback-demo').addEventListener('click', startDemo);
+    $('#fallback-pick').addEventListener('click', requestImport);
+
+    document.addEventListener('keydown', e => {
+      const onVF = document.body.dataset.screen === 'screen-viewfinder';
+      if (e.code === 'Space' && onVF) { e.preventDefault(); shutterPressed(); }
+      if (e.code === 'Escape') { closeSheet('#sheet-picker'); $('#viewer').classList.remove('show'); }
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) stopCamera();
-      else if (document.body.dataset.screen === 'screen-viewfinder') startCamera();
+      else if (document.body.dataset.screen === 'screen-viewfinder' && !state.demo) startCamera();
     });
 
     window.addEventListener('beforeunload', stopCamera);
@@ -607,17 +822,19 @@
   async function boot() {
     Photos.open().catch(() => {});
     const s = store.settings();
-    state.cameraId = s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera) ? s.defaultCamera : 'nomo_135_b';
+    state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera))
+      ? s.defaultCamera : 'nomo_135_b';
     bind();
     applyLiveLook();
     show('screen-splash');
     setTimeout(() => {
       if (store.seen()) {
-        startCamera().then(() => show('screen-viewfinder'));
+        show('screen-viewfinder');
+        startCamera().then(applyLiveLook);
       } else {
         show('screen-onboarding');
       }
-    }, 1500);
+    }, 1400);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

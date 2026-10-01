@@ -35,7 +35,10 @@ Everything is local. There is no backend, no login, and no network call in the a
   photo appears.
 - **PRO unlock** — every camera (including future ones), photo import from the gallery,
   no developing wait, and no ads.
-- **Capture controls** — front/back switch, flash, self-timer, shutter.
+- **Capture controls** — front/back switch, flash (device torch where available, otherwise a
+  screen flash), self-timer, shutter, and spacebar as a shortcut.
+- **Before / after** — on the result screen, tap *Original* to see the untouched capture
+  next to the film version.
 - **Gallery & sharing** — grouped in-app gallery, save to device, and the native share
   sheet (web: Web Share API with a download fallback).
 - **Settings** — date stamp, border, shutter sound, default camera, restore purchases,
@@ -54,8 +57,11 @@ python3 -m http.server 8000
 ```
 
 A camera needs a secure context, so serve over `localhost` (or HTTPS) rather than opening
-the file directly. If no camera is available, the app offers an "import a photo" path so
-you can still try the film looks.
+the file directly.
+
+**No camera, or permission denied?** The viewfinder offers *Demo scene try karein* — a
+built-in scene that runs through the exact same shutter → film pipeline → save → gallery
+path, so you can try the whole app without a webcam. PRO users can also import a photo.
 
 Screenshots: [`docs/screenshot-onboarding.jpg`](docs/screenshot-onboarding.jpg),
 [`docs/screenshot-shop.jpg`](docs/screenshot-shop.jpg),
@@ -80,7 +86,7 @@ your real AdMob and Play Billing IDs, and how to produce a signed AAB for the Pl
 | | Web build | Android build |
 |---|---|---|
 | Settings, owned cameras, PRO | `localStorage` (`facecam.*` keys) | `SharedPreferences` |
-| Photos | `IndexedDB` (`facecam` database) | `MediaStore` + app-private folder |
+| Photos | `IndexedDB` (`facecam` database), with an in-memory write-through copy so the gallery is always instant | `MediaStore` + app-private folder |
 | Camera presets | `web/js/cameras.js` | `android/app/src/main/assets/cameras/*.json` |
 
 Nothing leaves the device.
