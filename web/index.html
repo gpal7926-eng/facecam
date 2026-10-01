@@ -11,19 +11,25 @@
 <body>
 <div id="app">
 
-  <!-- 3D intro -->
-  <section class="screen" id="screen-intro">
-    <canvas id="intro-canvas"></canvas>
-    <button class="skip-btn" id="intro-skip">Skip</button>
-  </section>
-
-  <!-- Splash -->
-  <section class="screen" id="screen-splash">
-    <div class="splash-inner">
-      <div class="logo">FaceCam</div>
-      <div class="logo-sub">Vintage. Beauty. Video.</div>
-      <div class="film-strip"></div>
+  <!-- 3D Intro -->
+  <section class="screen intro" id="screen-intro">
+    <div class="intro-bg"></div>
+    <div class="intro-stage">
+      <div class="intro-gallery" id="intro-gallery">
+        <div class="intro-card c1"></div>
+        <div class="intro-card c2"></div>
+        <div class="intro-card c3"></div>
+        <div class="intro-card c4"></div>
+        <div class="intro-card c5"></div>
+      </div>
+      <div class="intro-shutter"><span></span></div>
+      <div class="intro-flash"></div>
     </div>
+    <div class="intro-title">
+      <div class="intro-wordmark">FaceCam</div>
+      <div class="intro-sub">50s &middot; 60s &middot; 70s &middot; 80s &middot; 90s &middot; B&amp;W</div>
+    </div>
+    <button class="intro-skip" id="intro-skip">Skip</button>
   </section>
 
   <!-- Onboarding -->
@@ -32,10 +38,10 @@
       <div class="logo small">FaceCam</div>
       <p class="onb-lead">Reels, selfies aur photos ke liye ek hi camera — vintage film looks, clean beauty, video, slow motion aur subtitles.</p>
       <ul class="onb-list">
-        <li>13 vintage film + 4 beauty cameras</li>
+        <li>Decade looks — 50s, 60s, 70s, 80s, 90s &amp; B&amp;W</li>
+        <li>19 vintage film + 9 beauty cameras</li>
         <li>Video recording, look baked in</li>
-        <li>Slow motion 0.5x / 0.25x</li>
-        <li>Subtitles aur live captions</li>
+        <li>Slow motion 0.5x / 0.25x + subtitles</li>
         <li>100% free, no ads, offline</li>
       </ul>
       <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
@@ -110,11 +116,17 @@
       <div class="vf-bottom">
         <div class="family-row" id="family-row">
           <button class="fam active" data-group="vintage">Vintage</button>
-          <button class="fam" data-group="bw">B&amp;W</button>
           <button class="fam" data-group="beauty">Beauty</button>
         </div>
 
         <div class="cam-strip" id="cam-strip"></div>
+
+        <div class="intensity-row" id="intensity-row">
+          <span class="intensity-label">Look</span>
+          <input type="range" id="intensity" min="0.4" max="1.6" step="0.05" value="1"
+                 aria-label="Look intensity">
+          <span class="intensity-val" id="intensity-val">100%</span>
+        </div>
 
         <div class="mode-row" id="mode-row">
           <button class="mode-chip active" data-mode="photo">Photo</button>
@@ -247,7 +259,6 @@
 <script src="js/cameras.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/video.js"></script>
-<script src="js/intro.js"></script>
 <script src="js/pro.js"></script>
 <script src="js/app.js"></script>
 </body>

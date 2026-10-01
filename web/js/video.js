@@ -12,9 +12,10 @@
  * Everything is local. Nothing is uploaded.
  */
 const Video = (() => {
-  let opts = { getSource: () => null, getPreset: () => null, getSettings: () => ({}) };
+  let opts = { getSource: () => null, getPreset: () => null, getSettings: () => ({}), getIntensity: () => 1 };
 
-  let canvas = null, ctx = null, noise = null;
+  let canvas = null, ctx = null, noise = null, bloom = null;
+  let leak = null;
   let recorder = null, chunks = [];
   let frameTimer = null, tickTimer = null;
   let micStream = null;
@@ -48,6 +49,22 @@ const Video = (() => {
     return '';
   }
 
+  function hexToRgba(hex, a) {
+    const h = String(hex || '#ffffff').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  /* Pick a fixed light-leak for this clip so the recording is stable. */
+  function initLeak(preset) {
+    const colors = (preset && preset.leakColors) || ['#ffcf7a', '#ff9d5c'];
+    leak = {
+      edge: Math.floor(Math.random() * 4),
+      span: 0.35 + Math.random() * 0.3,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    };
+  }
+
   function buildNoise() {
     const n = document.createElement('canvas');
     n.width = 200; n.height = 200;
@@ -72,27 +89,63 @@ const Video = (() => {
     if (canvas.width !== sw || canvas.height !== sh) { canvas.width = sw; canvas.height = sh; }
 
     const w = canvas.width, h = canvas.height;
-    const vintage = ((preset && preset.group) || 'vintage') !== 'beauty';
+    const vintage = (preset && preset.group || 'vintage') === 'vintage';
 
     ctx.filter = (preset && preset.filter) || 'none';
     ctx.drawImage(src, 0, 0, w, h);
     ctx.filter = 'none';
 
     if (vintage) {
+      const k = (opts.getIntensity ? opts.getIntensity() : 1);
+
+      // halation / bloom — a cheap downscaled bright pass, screen blended back
+      if ((preset.halation || 0) > 0) {
+        const hw = Math.max(8, Math.round(w * 0.13)), hh = Math.max(8, Math.round(h * 0.13));
+        if (!bloom) bloom = document.createElement('canvas');
+        bloom.width = hw; bloom.height = hh;
+        const bc = bloom.getContext('2d');
+        bc.filter = 'brightness(1.5) contrast(2.4) blur(2px)';
+        bc.drawImage(canvas, 0, 0, hw, hh);
+        bc.filter = 'none';
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = Math.min(0.4, (preset.halation || 0) * 0.30 * k);
+        ctx.drawImage(bloom, 0, 0, w, h);
+        ctx.restore();
+      }
+
       // grain (cheap: one tiled drawImage)
       if (!noise) buildNoise();
       ctx.save();
-      ctx.globalAlpha = Math.min(0.5, ((preset.grain || 0) * 0.45));
+      ctx.globalAlpha = Math.min(0.5, ((preset.grain || 0) * 0.45 * k));
       ctx.globalCompositeOperation = 'overlay';
       const pat = ctx.createPattern(noise, 'repeat');
       ctx.fillStyle = pat;
       ctx.fillRect(0, 0, w, h);
       ctx.restore();
 
+      // light leak — a coloured edge streak, fixed for the whole clip
+      if ((preset.leak || 0) > 0 && leak) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const a = Math.min(0.6, preset.leak * 0.42 * k);
+        let lg;
+        if (leak.edge === 0) lg = ctx.createLinearGradient(0, 0, w * leak.span, 0);
+        else if (leak.edge === 1) lg = ctx.createLinearGradient(w, 0, w * (1 - leak.span), 0);
+        else if (leak.edge === 2) lg = ctx.createLinearGradient(0, 0, 0, h * leak.span);
+        else lg = ctx.createLinearGradient(0, h, 0, h * (1 - leak.span));
+        lg.addColorStop(0, hexToRgba(leak.color, a));
+        lg.addColorStop(0.5, hexToRgba(leak.color, a * 0.35));
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+
       // vignette
       const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.30, w / 2, h / 2, Math.max(w, h) * 0.72);
       g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.85, 0.10 + (preset.vignette || 0) * 0.55).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.85, 0.10 + (preset.vignette || 0) * 0.55 * k).toFixed(3) + ')');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
 
@@ -163,6 +216,7 @@ const Video = (() => {
     canvas.height = src.videoHeight || 1280;
     ctx = canvas.getContext('2d', { willReadFrequently: false });
 
+    initLeak(opts.getPreset());
     drawFrame();
     const cstream = canvas.captureStream(30);
 

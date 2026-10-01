@@ -90,6 +90,7 @@
     family: 'vintage',
     mode: 'photo',
     speed: 1,
+    intensity: 1,
     facing: 'environment',
     flash: false,
     torchAvailable: false,
@@ -262,7 +263,7 @@
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    const vintage = groupOf(cam) !== 'beauty';
+    const vintage = groupOf(cam) === 'vintage';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const f = $('#live-frame');
     f.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
@@ -287,8 +288,9 @@
   }
 
   function developShot(canvas, cam, settings) {
-    if (groupOf(cam) === 'beauty') { Effects.applyBeauty(canvas, cam.beauty); return canvas; }
-    Effects.process(canvas, cam, settings);
+    const k = state.intensity == null ? 1 : state.intensity;
+    if (groupOf(cam) === 'beauty') { Effects.applyBeauty(canvas, cam.beauty, k); return canvas; }
+    Effects.process(canvas, cam, Object.assign({}, settings, { intensity: k }));
     return Effects.withBranding(canvas, cam, settings);
   }
 
@@ -638,6 +640,7 @@
 
   function setFamily(g) {
     state.family = g;
+    document.body.dataset.family = g;
     $$('#family-row .fam').forEach(b => b.classList.toggle('active', b.getAttribute('data-group') === g));
     const first = CAMERAS.filter(c => groupOf(c) === g)[0];
     if (first && groupOf(cameraById(state.cameraId)) !== g) selectCamera(first.id);
@@ -707,9 +710,9 @@
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    ['beauty', 'bw', 'vintage'].forEach(g => {
+    ['beauty', 'vintage'].forEach(g => {
       const og = document.createElement('optgroup');
-      og.label = g === 'beauty' ? 'Beauty' : (g === 'bw' ? 'Black & White' : 'Vintage');
+      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
       CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
         const o = document.createElement('option');
         o.value = c.id; o.textContent = c.name;
@@ -808,6 +811,15 @@
 
     $('#caption-input').addEventListener('input', e => Video.setCaption(e.target.value));
 
+    const intensity = $('#intensity');
+    if (intensity) {
+      intensity.addEventListener('input', () => {
+        state.intensity = parseFloat(intensity.value);
+        const v = $('#intensity-val');
+        if (v) v.textContent = Math.round(state.intensity * 100) + '%';
+      });
+    }
+
     $('#live-captions').addEventListener('change', e => {
       if (e.target.checked) {
         const ok = Video.setLiveCaptions(true, txt => { /* drawn onto the recording */ });
@@ -874,7 +886,6 @@
 
     $('#fallback-demo').addEventListener('click', startDemo);
     $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
-    $('#intro-skip').addEventListener('click', () => Intro.skip());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';
@@ -898,30 +909,50 @@
     const s = store.settings();
     state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera)) ? s.defaultCamera : 'nomo_135_b';
     state.family = groupOf(cameraById(state.cameraId));
+    document.body.dataset.family = state.family;
 
     bind();
     Pro.init({ getTrack: () => (state.stream ? state.stream.getVideoTracks()[0] : null) });
     Video.init({
       getSource: () => (state.demo ? state.demoSource : $('#video')),
       getPreset: () => cameraById(state.cameraId),
-      getSettings: () => store.settings()
+      getSettings: () => store.settings(),
+      getIntensity: () => (state.intensity == null ? 1 : state.intensity)
     });
 
     applyLiveLook();
     renderStrip();
     setMode('photo');
     renderMiniThumb();
-    show('screen-intro');
-    Intro.start(afterIntro);
+    runIntro();
   }
 
-  function afterIntro() {
-    if (store.seen()) {
-      show('screen-viewfinder');
-      startCamera().then(applyLiveLook);
-    } else {
-      show('screen-onboarding');
-    }
+  /* ------------------------------------------------------------------ *
+   * 3D intro
+   * ------------------------------------------------------------------ */
+  function proceedFromIntro() {
+    if (store.seen()) { show('screen-viewfinder'); startCamera().then(applyLiveLook); }
+    else show('screen-onboarding');
+  }
+
+  function runIntro() {
+    const el = $('#screen-intro');
+    show('screen-intro');
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (el) el.classList.remove('playing');
+      proceedFromIntro();
+    };
+    if (!el) { proceedFromIntro(); return; }
+    el.classList.remove('playing');
+    void el.offsetWidth;            // force the animation to restart
+    el.classList.add('playing');
+    setTimeout(finish, 3000);
+    el.addEventListener('click', finish, { once: true });
+    const skip = $('#intro-skip');
+    if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); finish(); }, { once: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

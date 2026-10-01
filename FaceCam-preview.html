@@ -2,10 +2,10 @@
 <!--
   FaceCam - standalone single-file web preview.
   HTML + CSS + JavaScript in one file: no build, no dependencies, no network.
-  29 cameras (18 vintage film, 3 black & white, 8 beauty), photo + video,
-  slow motion, subtitles, 3D intro, manual mode. Free, no paywall, no ads.
+  19 vintage film cameras (incl. 1950s-1990s decade looks + B&W) and 9 beauty
+  cameras, photo + video, slow motion, subtitles, manual camera mode, 3D intro.
+  Free, no paywall, no ads.
 -->
-
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -413,18 +413,6 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 }
 .viewer-actions { display: flex; gap: 10px; }
 
-/* ---------- 3D intro ---------- */
-#screen-intro { background: #06060a; }
-#intro-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.skip-btn {
-  position: absolute; right: 16px; bottom: 24px;
-  appearance: none; border: 1px solid var(--line); background: var(--glass);
-  color: var(--muted); font-family: inherit; font-size: 12.5px; font-weight: 700;
-  padding: 8px 16px; border-radius: 999px; cursor: pointer;
-  backdrop-filter: blur(12px); letter-spacing: .4px;
-}
-.skip-btn:active { transform: scale(.96); }
-
 /* ---------- Toast ---------- */
 .toast {
   position: absolute; left: 50%; top: 92px; transform: translate(-50%, -14px);
@@ -484,24 +472,177 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .pro-note { margin: 0; font-size: 10px; line-height: 1.4; color: #9a978f;
   text-align: center; text-shadow: 0 1px 5px rgba(0,0,0,.85); }
 
+/* ==================================================================== *
+ * FaceCam — "Chinese camera app" UI refresh + 3D intro
+ * ==================================================================== */
+:root {
+  --grad: linear-gradient(120deg, #ff5fa2, #a855f7 55%, #22d3ee);
+  --grad-vintage: linear-gradient(120deg, #ffb347, #ff6a3d 58%, #ff4d8d);
+  --grad-beauty: linear-gradient(120deg, #ff8fc8, #c084fc 55%, #7dd3fc);
+  --grad-active: var(--grad);
+  --glow: 0 10px 30px rgba(168, 85, 247, .34);
+}
+body[data-family="vintage"] { --grad-active: var(--grad-vintage); }
+body[data-family="beauty"]  { --grad-active: var(--grad-beauty); }
+
+#app {
+  background:
+    radial-gradient(120% 60% at 50% -12%, rgba(168,85,247,.20), transparent 62%),
+    radial-gradient(120% 60% at 50% 112%, rgba(34,211,238,.16), transparent 62%),
+    var(--bg);
+}
+
+.btn { border-radius: 16px; }
+.btn.primary { position: relative; overflow: hidden; font-weight: 800; box-shadow: var(--glow); }
+.btn.primary::after {
+  content: ""; position: absolute; inset: 0 0 52% 0; pointer-events: none;
+  background: linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,0));
+}
+
+.icon-btn { border-radius: 16px; }
+.icon-btn.on { background: var(--grad); border-color: transparent; box-shadow: var(--glow); }
+
+.fam.active, .mode-chip.active, .speed.active, .tab.active { box-shadow: 0 8px 22px rgba(168,85,247,.35); }
+.fam.active { background: var(--grad-active); color: #fff; border-color: transparent; }
+.mode-chip.active { background: var(--grad-active); color: #fff; border-color: transparent; }
+.tab.active { background: var(--grad); }
+
+.cam-chip .dot { border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.cam-chip.active .dot { border-color: transparent; box-shadow: 0 0 0 2px #fff, 0 8px 20px rgba(168,85,247,.45); }
+
+.shutter {
+  background: var(--grad); border-color: rgba(255,255,255,.5);
+  box-shadow: 0 0 0 6px rgba(255,255,255,.06), var(--glow);
+}
+.shutter span { background: #fff; }
+
+.bottom-nav { border-radius: 22px 22px 0 0; }
+.nav-btn.active { color: #fff; }
+.nav-btn.active span {
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 10px rgba(168,85,247,.6));
+}
+
+.shop-card { border-radius: 20px; }
+.shop-card.active { border-color: transparent; box-shadow: 0 0 0 2px rgba(168,85,247,.7), var(--glow); }
+.buy-btn { background: var(--grad); border-radius: 12px; box-shadow: 0 8px 20px rgba(168,85,247,.3); }
+.speed-bake { box-shadow: var(--glow); }
+.tabs { border-radius: 999px; }
+.logo, .intro-wordmark { filter: drop-shadow(0 8px 24px rgba(168,85,247,.35)); }
+
+/* look-intensity slider */
+.intensity-row { display: flex; align-items: center; gap: 10px; padding: 0 8px 10px; }
+.intensity-label { font-size: 10.5px; font-weight: 800; letter-spacing: .8px; color: var(--muted); text-transform: uppercase; }
+.intensity-row input[type="range"] { flex: 1; height: 22px; accent-color: #c084fc; }
+.intensity-val { font-size: 11px; font-weight: 800; color: var(--text); min-width: 42px; text-align: right; }
+
+/* ---------- 3D intro ---------- */
+.intro { align-items: center; justify-content: center; background: #07070b; overflow: hidden; }
+.intro-bg {
+  position: absolute; inset: -20%; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 30% 25%, rgba(255,95,162,.40), transparent 70%),
+    radial-gradient(55% 45% at 76% 30%, rgba(34,211,238,.30), transparent 70%),
+    radial-gradient(70% 60% at 50% 88%, rgba(168,85,247,.38), transparent 75%);
+  filter: blur(22px);
+}
+.intro.playing .intro-bg { animation: introHue 7s linear infinite; }
+@keyframes introHue { to { filter: blur(22px) hue-rotate(360deg); } }
+
+.intro-stage { position: relative; width: min(82vw, 320px); height: min(50vh, 320px); perspective: 1000px; }
+.intro-gallery {
+  position: absolute; inset: 0; transform-style: preserve-3d; opacity: 0;
+  transform: rotateX(24deg) rotateY(-40deg) translateZ(-120px) scale(.6);
+}
+.intro.playing .intro-gallery { animation: introSpin 3s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes introSpin {
+  0%   { transform: rotateX(26deg) rotateY(-46deg) translateZ(-140px) scale(.58); opacity: 0; }
+  16%  { opacity: 1; }
+  62%  { transform: rotateX(10deg) rotateY(14deg) translateZ(24px) scale(1.03); opacity: 1; }
+  100% { transform: rotateX(6deg) rotateY(0deg) translateZ(0) scale(1); opacity: 1; }
+}
+.intro-card {
+  position: absolute; left: 50%; top: 50%; width: 92px; height: 116px;
+  margin: -58px 0 0 -46px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 18px 40px rgba(0,0,0,.6);
+}
+.intro-card.c1 { background: linear-gradient(135deg,#f4d9a8,#b06a3c); transform: rotateY(-44deg) translateZ(58px) translateX(-72px); }
+.intro-card.c2 { background: linear-gradient(135deg,#ffd0e6,#a855f7); transform: rotateY(-22deg) translateZ(92px) translateX(-38px); }
+.intro-card.c3 { background: linear-gradient(135deg,#9be7ff,#3b6bd6); transform: translateZ(126px); }
+.intro-card.c4 { background: linear-gradient(135deg,#ffc9a0,#ff5f6d); transform: rotateY(22deg) translateZ(92px) translateX(38px); }
+.intro-card.c5 { background: linear-gradient(135deg,#d7ffd0,#2f9e6b); transform: rotateY(44deg) translateZ(58px) translateX(72px); }
+
+.intro-shutter {
+  position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px;
+  border-radius: 50%; border: 3px solid rgba(255,255,255,.85);
+  display: flex; align-items: center; justify-content: center; opacity: 0;
+}
+.intro-shutter span { width: 58px; height: 58px; border-radius: 50%; background: #fff; }
+.intro.playing .intro-shutter { animation: introShutter 3s ease forwards; }
+@keyframes introShutter {
+  0%, 40%  { opacity: 0; transform: scale(.6); }
+  48%      { opacity: 1; transform: scale(1); }
+  60%      { opacity: 1; transform: scale(.9); }
+  72%,100% { opacity: 0; transform: scale(1.25); }
+}
+.intro-flash { position: absolute; inset: -40%; background: #fff; opacity: 0; pointer-events: none; }
+.intro.playing .intro-flash { animation: introFlash 3s ease forwards; }
+@keyframes introFlash { 0%, 46% { opacity: 0; } 52% { opacity: .92; } 60%, 100% { opacity: 0; } }
+
+.intro-title { position: absolute; left: 0; right: 0; bottom: 15%; text-align: center; }
+.intro-wordmark {
+  font-size: 46px; font-weight: 800; letter-spacing: -.8px;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  opacity: 0; transform: translateY(18px) scale(.9);
+}
+.intro-sub {
+  color: var(--muted); margin-top: 8px; font-size: 12px; letter-spacing: 2.4px;
+  text-transform: uppercase; opacity: 0; transform: translateY(12px);
+}
+.intro.playing .intro-wordmark { animation: introRise .7s 1.55s cubic-bezier(.2,.8,.2,1) forwards; }
+.intro.playing .intro-sub { animation: introRise .7s 1.78s cubic-bezier(.2,.8,.2,1) forwards; }
+@keyframes introRise { to { opacity: 1; transform: none; } }
+
+.intro-skip {
+  position: absolute; top: 18px; right: 18px; appearance: none;
+  border: 1px solid var(--line); background: var(--glass); color: var(--muted);
+  font-family: inherit; font-size: 12.5px; font-weight: 700;
+  padding: 7px 16px; border-radius: 999px; cursor: pointer; backdrop-filter: blur(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro.playing .intro-gallery,
+  .intro.playing .intro-shutter,
+  .intro.playing .intro-flash,
+  .intro.playing .intro-bg { animation: none; }
+  .intro-gallery { opacity: 1; transform: none; }
+  .intro-wordmark, .intro-sub { opacity: 1; transform: none; }
+}
+
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- 3D intro -->
-  <section class="screen" id="screen-intro">
-    <canvas id="intro-canvas"></canvas>
-    <button class="skip-btn" id="intro-skip">Skip</button>
-  </section>
-
-  <!-- Splash -->
-  <section class="screen" id="screen-splash">
-    <div class="splash-inner">
-      <div class="logo">FaceCam</div>
-      <div class="logo-sub">Vintage. Beauty. Video.</div>
-      <div class="film-strip"></div>
+  <!-- 3D Intro -->
+  <section class="screen intro" id="screen-intro">
+    <div class="intro-bg"></div>
+    <div class="intro-stage">
+      <div class="intro-gallery" id="intro-gallery">
+        <div class="intro-card c1"></div>
+        <div class="intro-card c2"></div>
+        <div class="intro-card c3"></div>
+        <div class="intro-card c4"></div>
+        <div class="intro-card c5"></div>
+      </div>
+      <div class="intro-shutter"><span></span></div>
+      <div class="intro-flash"></div>
     </div>
+    <div class="intro-title">
+      <div class="intro-wordmark">FaceCam</div>
+      <div class="intro-sub">50s &middot; 60s &middot; 70s &middot; 80s &middot; 90s &middot; B&amp;W</div>
+    </div>
+    <button class="intro-skip" id="intro-skip">Skip</button>
   </section>
 
   <!-- Onboarding -->
@@ -510,10 +651,10 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div class="logo small">FaceCam</div>
       <p class="onb-lead">Reels, selfies aur photos ke liye ek hi camera — vintage film looks, clean beauty, video, slow motion aur subtitles.</p>
       <ul class="onb-list">
-        <li>13 vintage film + 4 beauty cameras</li>
+        <li>Decade looks — 50s, 60s, 70s, 80s, 90s &amp; B&amp;W</li>
+        <li>19 vintage film + 9 beauty cameras</li>
         <li>Video recording, look baked in</li>
-        <li>Slow motion 0.5x / 0.25x</li>
-        <li>Subtitles aur live captions</li>
+        <li>Slow motion 0.5x / 0.25x + subtitles</li>
         <li>100% free, no ads, offline</li>
       </ul>
       <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
@@ -588,11 +729,17 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
       <div class="vf-bottom">
         <div class="family-row" id="family-row">
           <button class="fam active" data-group="vintage">Vintage</button>
-          <button class="fam" data-group="bw">B&amp;W</button>
           <button class="fam" data-group="beauty">Beauty</button>
         </div>
 
         <div class="cam-strip" id="cam-strip"></div>
+
+        <div class="intensity-row" id="intensity-row">
+          <span class="intensity-label">Look</span>
+          <input type="range" id="intensity" min="0.4" max="1.6" step="0.05" value="1"
+                 aria-label="Look intensity">
+          <span class="intensity-val" id="intensity-val">100%</span>
+        </div>
 
         <div class="mode-row" id="mode-row">
           <button class="mode-chip active" data-mode="photo">Photo</button>
@@ -725,20 +872,20 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 <script>
 /* FaceCam — camera presets.
  *
- * Three families:
- *   group: 'vintage'  film simulations — grain, leaks, vignette, frames
- *   group: 'bw'       black & white — desaturated, silver-grain
- *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural
+ * Two families:
+ *   group: 'vintage'  film simulations — grain, leaks, vignette, frames.
+ *                     Includes the decade looks (1950s…1990s) and B&W.
+ *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural.
  *
- * vintage / bw use: filter, tone, halation, chroma, grain, dust, vignette,
- *                   leak, frame, dateStamp
- * beauty uses:      filter, beauty { exposure, contrast, sat, warmth,
- *                   smooth, sharpen, glow }
+ * Vintage presets use: filter, tone, halation, chroma, grain, dust, vignette,
+ *                      leak, frame, dateStamp
+ * Beauty presets use:  filter, beauty { exposure, contrast, sat, warmth,
+ *                      smooth, sharpen, glow }
  */
 const CAMERAS = [
-  /* ================================================================== *
-   * BEAUTY — clean, natural, phone-camera enhance
-   * ================================================================== */
+  /* ------------------------------------------------------------------ *
+   * BEAUTY — clean, natural, iPhone-like
+   * ------------------------------------------------------------------ */
   {
     id: 'beauty_natural', name: 'Natural', tag: 'Clean & true', group: 'beauty',
     desc: 'Balanced, true-to-life enhance. Soft skin, crisp detail, no colour shift.',
@@ -768,133 +915,44 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'beauty_soft', name: 'Soft', tag: 'Dreamy', group: 'beauty',
-    desc: 'Dreamy, low-contrast glow with the strongest skin softening.',
-    filter: 'contrast(0.96) saturate(1.02) brightness(1.08)',
-    beauty: { exposure: 0.075, contrast: 0.97, sat: 1.02, warmth: 0.045, smooth: 1.00, sharpen: 0.45, glow: 0.70 },
+    id: 'beauty_soft', name: 'Soft Glam', tag: 'Dreamy skin', group: 'beauty',
+    desc: 'Heavy, silky skin smoothing with a strong soft-glow — a glamour look.',
+    filter: 'contrast(1.03) saturate(1.06) brightness(1.07)',
+    beauty: { exposure: 0.075, contrast: 1.05, sat: 1.09, warmth: 0.060, smooth: 1.15, sharpen: 0.55, glow: 0.72 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_glow', name: 'Glow', tag: 'Lit from within', group: 'beauty',
-    desc: 'Bright with a strong bloom — that lit-from-within look.',
-    filter: 'contrast(1.03) saturate(1.10) brightness(1.12)',
-    beauty: { exposure: 0.120, contrast: 1.04, sat: 1.10, warmth: 0.030, smooth: 0.84, sharpen: 0.55, glow: 0.85 },
+    id: 'beauty_vivid', name: 'Vivid Pop', tag: 'Punchy colour', group: 'beauty',
+    desc: 'Bright, saturated and crisp — colours that jump off the screen.',
+    filter: 'contrast(1.12) saturate(1.26) brightness(1.05)',
+    beauty: { exposure: 0.050, contrast: 1.16, sat: 1.32, warmth: 0.020, smooth: 0.80, sharpen: 0.98, glow: 0.34 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_radiance', name: 'Radiance', tag: 'Crisp & clear', group: 'beauty',
-    desc: 'Crisp, clear, bright skin with sharp detail throughout.',
-    filter: 'contrast(1.10) saturate(1.08) brightness(1.06)',
-    beauty: { exposure: 0.060, contrast: 1.12, sat: 1.08, warmth: 0.020, smooth: 0.74, sharpen: 1.00, glow: 0.34 },
+    id: 'beauty_cool', name: 'Cool Clean', tag: 'Crisp & cool', group: 'beauty',
+    desc: 'A cool white balance with clean, sharp detail. Modern and airy.',
+    filter: 'contrast(1.06) saturate(1.02) brightness(1.06) hue-rotate(-3deg)',
+    beauty: { exposure: 0.080, contrast: 1.09, sat: 1.00, warmth: -0.050, smooth: 0.85, sharpen: 0.82, glow: 0.34 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_matte', name: 'Matte', tag: 'Soft matte', group: 'beauty',
-    desc: 'Lifted blacks and a matte finish, with natural, even skin.',
-    filter: 'contrast(0.98) saturate(1.04) brightness(1.05)',
-    beauty: { exposure: 0.085, contrast: 0.99, sat: 1.04, warmth: 0.035, smooth: 0.88, sharpen: 0.62, glow: 0.38 },
+    id: 'beauty_golden', name: 'Golden Hour', tag: 'Sunset glow', group: 'beauty',
+    desc: 'Warm golden light with a rich highlight glow — the hour before dusk.',
+    filter: 'sepia(0.12) saturate(1.13) brightness(1.06)',
+    beauty: { exposure: 0.090, contrast: 1.05, sat: 1.15, warmth: 0.120, smooth: 0.95, sharpen: 0.70, glow: 0.78 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_mono', name: 'Mono Beauty', tag: 'Clean B&W', group: 'beauty', bw: true,
+    desc: 'A clean black-and-white beauty look: smooth skin, crisp detail, no colour.',
+    filter: 'grayscale(1) contrast(1.08) brightness(1.06)',
+    beauty: { exposure: 0.080, contrast: 1.12, sat: 0.0, warmth: 0.0, smooth: 0.95, sharpen: 0.86, glow: 0.46 },
     paid: false, price: 0
   },
 
-  /* ================================================================== *
-   * BLACK & WHITE
-   * ================================================================== */
-  {
-    id: 'bw_classic', name: 'B&W Classic', tag: 'Silver grey', group: 'bw',
-    desc: 'Balanced silver-grey monochrome with medium contrast.',
-    filter: 'grayscale(1) contrast(1.06) brightness(1.02)',
-    tone: { lift: 0.015, gamma: 1.04, gain: 1.01, warmth: 0, sat: 0 },
-    halation: 0.30, chroma: 0,
-    grain: 0.34, dust: 0.20, vignette: 0.34, leak: 0.10,
-    leakColors: ['#dddddd', '#bbbbbb'],
-    frame: { style: 'thin', color: '#f2f2f2' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'bw_high', name: 'B&W Contrast', tag: 'Deep blacks', group: 'bw',
-    desc: 'High-contrast monochrome. Punchy blacks, bright whites.',
-    filter: 'grayscale(1) contrast(1.35) brightness(1.00)',
-    tone: { lift: -0.045, gamma: 1.22, gain: 1.02, warmth: 0, sat: 0 },
-    halation: 0.22, chroma: 0,
-    grain: 0.46, dust: 0.26, vignette: 0.48, leak: 0.08,
-    leakColors: ['#ffffff', '#cccccc'],
-    frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'bw_warm', name: 'B&W Sepia', tag: 'Warm tone', group: 'bw',
-    desc: 'Warm sepia-toned monochrome — an old print look.',
-    filter: 'grayscale(1) sepia(0.55) contrast(1.02) brightness(1.04)',
-    tone: { lift: 0.045, gamma: 1.00, gain: 1.03, warmth: 0.075, sat: 0.18 },
-    halation: 0.42, chroma: 0.10,
-    grain: 0.40, dust: 0.30, vignette: 0.44, leak: 0.20,
-    leakColors: ['#e8c9a0', '#d9b183'],
-    frame: { style: 'thin', color: '#f4ead9' }, dateStamp: true,
-    paid: false, price: 0
-  },
-
-  /* ================================================================== *
-   * VINTAGE — decades
-   * ================================================================== */
-  {
-    id: 'vintage_50s', name: '50s Kodachrome', tag: '1950s', group: 'vintage',
-    desc: 'Warm, muted 1950s Kodachrome. Low contrast, heavy grain.',
-    filter: 'sepia(0.22) saturate(0.88) contrast(0.92) brightness(1.04)',
-    tone: { lift: 0.045, gamma: 0.94, gain: 1.03, warmth: 0.065, sat: 0.92 },
-    halation: 0.45, chroma: 0.22,
-    grain: 0.62, dust: 0.42, vignette: 0.42, leak: 0.30,
-    leakColors: ['#e8b17a', '#d99a63'],
-    frame: { style: 'thin', color: '#f0e6d2' }, dateStamp: true,
-    paid: false, price: 0
-  },
-  {
-    id: 'vintage_60s', name: '60s Ektachrome', tag: '1960s', group: 'vintage',
-    desc: 'Cooler, cyan-leaning 1960s slide film. Faded and clean.',
-    filter: 'hue-rotate(8deg) saturate(0.95) contrast(0.96) brightness(1.05)',
-    tone: { lift: 0.055, gamma: 0.97, gain: 1.04, warmth: -0.055, sat: 0.96 },
-    halation: 0.38, chroma: 0.24,
-    grain: 0.44, dust: 0.30, vignette: 0.36, leak: 0.34,
-    leakColors: ['#9fd8e8', '#8fc4dd'],
-    frame: { style: 'thin', color: '#e6f0f2' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'vintage_70s', name: '70s Faded', tag: '1970s', group: 'vintage',
-    desc: 'Orange-brown 1970s cast, lifted blacks and big light leaks.',
-    filter: 'sepia(0.40) saturate(1.10) contrast(0.90) brightness(1.06)',
-    tone: { lift: 0.080, gamma: 0.92, gain: 1.06, warmth: 0.120, sat: 1.12 },
-    halation: 0.62, chroma: 0.34,
-    grain: 0.58, dust: 0.46, vignette: 0.44, leak: 0.72,
-    leakColors: ['#ffb257', '#ff8a3d'],
-    frame: { style: 'thin', color: '#f6e7cd' }, dateStamp: true,
-    paid: false, price: 0
-  },
-  {
-    id: 'vintage_80s', name: '80s Punch', tag: '1980s', group: 'vintage',
-    desc: 'Punchy, saturated 1980s colour. High contrast, slight magenta.',
-    filter: 'contrast(1.28) saturate(1.42) hue-rotate(4deg) brightness(1.04)',
-    tone: { lift: -0.015, gamma: 1.14, gain: 1.03, warmth: 0.045, sat: 1.40 },
-    halation: 0.34, chroma: 0.40,
-    grain: 0.34, dust: 0.22, vignette: 0.40, leak: 0.36,
-    leakColors: ['#ff6fae', '#ff9ecb'],
-    frame: { style: 'thin', color: '#ffffff' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'vintage_90s', name: '90s Disposable', tag: '1990s', group: 'vintage',
-    desc: '1990s disposable camera: harsh flash, magenta cast, strong vignette.',
-    filter: 'contrast(1.22) saturate(1.20) hue-rotate(10deg) brightness(1.07)',
-    tone: { lift: -0.010, gamma: 1.12, gain: 1.07, warmth: 0.070, sat: 1.22 },
-    halation: 0.50, chroma: 0.62,
-    grain: 0.66, dust: 0.34, vignette: 0.58, leak: 0.24,
-    leakColors: ['#ff77c8', '#ffd0f0'],
-    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
-    paid: false, price: 0
-  },
-
-  /* ================================================================== *
-   * VINTAGE — classic film simulations
-   * ================================================================== */
+  /* ------------------------------------------------------------------ *
+   * VINTAGE — film simulations
+   * ------------------------------------------------------------------ */
   {
     id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic', group: 'vintage',
     desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
@@ -1037,6 +1095,91 @@ const CAMERAS = [
     grain: 0.30, dust: 0.18, vignette: 0.42, leak: 0.26,
     leakColors: ['#8fd8ff', '#c6f0ff'],
     frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+
+  /* ------------------------------------------------------------------ *
+   * VINTAGE — DECADE LOOKS  (50s · 60s · 70s · 80s · 90s)
+   * ------------------------------------------------------------------ */
+  {
+    id: 'decade_50s', name: '1950s', tag: 'Sepia Cinema', group: 'vintage', era: '50s',
+    desc: 'Soft, faded sepia with deep corners — a hand-tinted 1950s print.',
+    filter: 'sepia(0.55) contrast(0.92) saturate(0.82) brightness(1.04)',
+    tone: { lift: 0.06, gamma: 0.94, gain: 1.03, warmth: 0.10, sat: 0.58 },
+    halation: 0.50, chroma: 0.10,
+    grain: 0.50, dust: 0.30, vignette: 0.56, leak: 0.34,
+    leakColors: ['#f3c98b', '#d9a05b'],
+    frame: { style: 'thin', color: '#efe3c8' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'decade_60s', name: '1960s', tag: 'Kodachrome', group: 'vintage', era: '60s',
+    desc: 'Vivid, saturated Kodachrome warmth with a gentle vintage fade.',
+    filter: 'saturate(1.26) contrast(1.06) sepia(0.14) brightness(1.03)',
+    tone: { lift: 0.03, gamma: 1.02, gain: 1.03, warmth: 0.06, sat: 1.26 },
+    halation: 0.45, chroma: 0.20,
+    grain: 0.34, dust: 0.20, vignette: 0.36, leak: 0.30,
+    leakColors: ['#ffcf7a', '#ff9d5c'],
+    frame: { style: 'thin', color: '#f7edda' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'decade_70s', name: '1970s', tag: 'Warm Fade', group: 'vintage', era: '70s',
+    desc: 'Warm brown-orange cast, lifted blacks and heavy grain. Pure 70s.',
+    filter: 'sepia(0.32) saturate(1.10) contrast(0.94) brightness(1.05)',
+    tone: { lift: 0.075, gamma: 0.95, gain: 1.04, warmth: 0.12, sat: 1.06 },
+    halation: 0.60, chroma: 0.28,
+    grain: 0.56, dust: 0.36, vignette: 0.42, leak: 0.50,
+    leakColors: ['#ff9a3c', '#ffcf6b'],
+    frame: { style: 'thin', color: '#f2e2c4' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'decade_80s', name: '1980s', tag: 'Neon VHS', group: 'vintage', era: '80s',
+    desc: 'Magenta-and-cyan neon with a VHS glow and blotchy chroma noise.',
+    filter: 'contrast(1.14) saturate(1.35) hue-rotate(-10deg) brightness(1.04)',
+    tone: { lift: 0.0, gamma: 1.08, gain: 1.04, warmth: 0.04, sat: 1.30 },
+    halation: 0.70, chroma: 0.55,
+    grain: 0.50, dust: 0.22, vignette: 0.38, leak: 0.40,
+    leakColors: ['#ff4fd8', '#4fd8ff'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'decade_90s', name: '1990s', tag: 'Point & Shoot', group: 'vintage', era: '90s',
+    desc: 'Cool, contrasty compact-camera colour with a slight modern fade.',
+    filter: 'contrast(1.12) saturate(1.05) hue-rotate(-4deg) brightness(1.00)',
+    tone: { lift: -0.01, gamma: 1.08, gain: 1.00, warmth: -0.03, sat: 1.02 },
+    halation: 0.30, chroma: 0.18,
+    grain: 0.34, dust: 0.18, vignette: 0.34, leak: 0.20,
+    leakColors: ['#9fd3ff', '#ffd0a0'],
+    frame: { style: 'thin', color: '#f0f0f0' }, dateStamp: true,
+    paid: false, price: 0
+  },
+
+  /* ------------------------------------------------------------------ *
+   * VINTAGE — BLACK & WHITE
+   * ------------------------------------------------------------------ */
+  {
+    id: 'mono_bw', name: 'B&W Classic', tag: 'Black & White', group: 'vintage', bw: true,
+    desc: 'Classic black-and-white film: full tonal range, grain and a soft vignette.',
+    filter: 'grayscale(1) contrast(1.08) brightness(1.02)',
+    tone: { lift: 0.01, gamma: 1.05, gain: 1.02, warmth: 0.0, sat: 0.0 },
+    halation: 0.35, chroma: 0.06,
+    grain: 0.44, dust: 0.24, vignette: 0.44, leak: 0.06,
+    leakColors: ['#ffffff', '#dddddd'],
+    frame: { style: 'thin', color: '#f0f0f0' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'mono_noir', name: 'B&W Noir', tag: 'High-Contrast B&W', group: 'vintage', bw: true,
+    desc: 'Dramatic high-contrast monochrome with crushed blacks and heavy falloff.',
+    filter: 'grayscale(1) contrast(1.38) brightness(0.98)',
+    tone: { lift: -0.04, gamma: 1.24, gain: 1.00, warmth: 0.0, sat: 0.0 },
+    halation: 0.25, chroma: 0.05,
+    grain: 0.50, dust: 0.28, vignette: 0.62, leak: 0.05,
+    leakColors: ['#ffffff'],
+    frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
     paid: false, price: 0
   }
 ];
@@ -1314,19 +1457,32 @@ const Effects = (() => {
     ctx.restore();
   }
 
+  /* ---------- look intensity: scale a preset's strength by k (0.4..1.6) ---------- */
+  function scaleTone(tone, k) {
+    if (!tone || k === 1) return tone;
+    return {
+      lift: (tone.lift || 0) * k,
+      gamma: 1 + ((tone.gamma == null ? 1 : tone.gamma) - 1) * k,
+      gain: 1 + ((tone.gain == null ? 1 : tone.gain) - 1) * k,
+      warmth: (tone.warmth || 0) * k,
+      sat: 1 + ((tone.sat == null ? 1 : tone.sat) - 1) * k
+    };
+  }
+
   /* ---------- run the full randomised pipeline ---------- */
   function process(canvas, preset, settings) {
     settings = settings || {};
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
+    const k = settings.intensity == null ? 1 : settings.intensity;
 
-    applyTone(canvas, preset.tone);
-    halation(ctx, w, h, (preset.halation || 0) * rand(0.7, 1.3));
-    grain(ctx, w, h, Math.min(1, preset.grain * rand(0.6, 1.4)));
-    chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * rand(0.6, 1.4)));
-    lightLeak(ctx, w, h, preset.leak * rand(0.4, 1.6), preset.leakColors);
-    vignette(ctx, w, h, Math.min(1, preset.vignette * rand(0.7, 1.3)));
-    dust(ctx, w, h, Math.min(1, preset.dust * rand(0.5, 1.5)));
+    applyTone(canvas, scaleTone(preset.tone, k));
+    halation(ctx, w, h, (preset.halation || 0) * k * rand(0.7, 1.3));
+    grain(ctx, w, h, Math.min(1, preset.grain * k * rand(0.6, 1.4)));
+    chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * k * rand(0.6, 1.4)));
+    lightLeak(ctx, w, h, preset.leak * k * rand(0.4, 1.6), preset.leakColors);
+    vignette(ctx, w, h, Math.min(1, preset.vignette * k * rand(0.7, 1.3)));
+    dust(ctx, w, h, Math.min(1, preset.dust * k * rand(0.5, 1.5)));
     if (settings.border !== false) frame(ctx, w, h, preset.frame);
     if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h);
     return canvas;
@@ -1415,25 +1571,26 @@ const Effects = (() => {
   }
 
   /* Clean, natural, phone-camera enhance. */
-  function applyBeauty(canvas, b) {
+  function applyBeauty(canvas, b, intensity) {
     b = b || {};
+    const k = intensity == null ? 1 : intensity;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const w = canvas.width, h = canvas.height;
     const min = Math.min(w, h);
 
     // 1. base grade: exposure, gentle contrast, natural saturation, warmth
     applyTone(canvas, {
-      lift: b.exposure || 0,
-      gamma: b.contrast || 1,
+      lift: (b.exposure || 0) * k,
+      gamma: 1 + ((b.contrast == null ? 1 : b.contrast) - 1) * k,
       gain: 1,
-      warmth: b.warmth || 0,
-      sat: b.sat == null ? 1 : b.sat
+      warmth: (b.warmth || 0) * k,
+      sat: 1 + ((b.sat == null ? 1 : b.sat) - 1) * k
     });
 
     // 2. skin-aware smoothing. Blemishes are LOW-amplitude detail, so a high
     //    threshold smooths them away while eyes, brows and hair (high detail)
     //    survive. Weighting is strongest on skin tones.
-    const smooth = b.smooth || 0;
+    const smooth = (b.smooth || 0) * k;
     if (smooth > 0) {
       const blurred = blurCopy(canvas, Math.max(3, Math.round(min * 0.020)));
       const img = ctx.getImageData(0, 0, w, h);
@@ -1481,7 +1638,7 @@ const Effects = (() => {
     }
 
     // 3. soft highlight glow
-    const glow = b.glow || 0;
+    const glow = (b.glow || 0) * k;
     if (glow > 0) {
       const t = document.createElement('canvas');
       t.width = w; t.height = h;
@@ -1498,7 +1655,7 @@ const Effects = (() => {
 
     // 4. clarity + unsharp, but ONLY on real edges. Without this gate the
     //    sharpening puts the blemishes straight back that step 2 just removed.
-    const sharpen = b.sharpen || 0;
+    const sharpen = (b.sharpen || 0) * k;
     if (sharpen > 0) {
       const soft = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
       const fine = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
@@ -1539,7 +1696,7 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, withBranding, applyBeauty, blend, rand, pick };
+  return { capture, process, withBranding, applyBeauty, blend, rand, pick, scaleTone };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }
@@ -1560,9 +1717,10 @@ if (typeof module !== 'undefined') { module.exports = { Effects }; }
  * Everything is local. Nothing is uploaded.
  */
 const Video = (() => {
-  let opts = { getSource: () => null, getPreset: () => null, getSettings: () => ({}) };
+  let opts = { getSource: () => null, getPreset: () => null, getSettings: () => ({}), getIntensity: () => 1 };
 
-  let canvas = null, ctx = null, noise = null;
+  let canvas = null, ctx = null, noise = null, bloom = null;
+  let leak = null;
   let recorder = null, chunks = [];
   let frameTimer = null, tickTimer = null;
   let micStream = null;
@@ -1596,6 +1754,22 @@ const Video = (() => {
     return '';
   }
 
+  function hexToRgba(hex, a) {
+    const h = String(hex || '#ffffff').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  /* Pick a fixed light-leak for this clip so the recording is stable. */
+  function initLeak(preset) {
+    const colors = (preset && preset.leakColors) || ['#ffcf7a', '#ff9d5c'];
+    leak = {
+      edge: Math.floor(Math.random() * 4),
+      span: 0.35 + Math.random() * 0.3,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    };
+  }
+
   function buildNoise() {
     const n = document.createElement('canvas');
     n.width = 200; n.height = 200;
@@ -1620,27 +1794,63 @@ const Video = (() => {
     if (canvas.width !== sw || canvas.height !== sh) { canvas.width = sw; canvas.height = sh; }
 
     const w = canvas.width, h = canvas.height;
-    const vintage = ((preset && preset.group) || 'vintage') !== 'beauty';
+    const vintage = (preset && preset.group || 'vintage') === 'vintage';
 
     ctx.filter = (preset && preset.filter) || 'none';
     ctx.drawImage(src, 0, 0, w, h);
     ctx.filter = 'none';
 
     if (vintage) {
+      const k = (opts.getIntensity ? opts.getIntensity() : 1);
+
+      // halation / bloom — a cheap downscaled bright pass, screen blended back
+      if ((preset.halation || 0) > 0) {
+        const hw = Math.max(8, Math.round(w * 0.13)), hh = Math.max(8, Math.round(h * 0.13));
+        if (!bloom) bloom = document.createElement('canvas');
+        bloom.width = hw; bloom.height = hh;
+        const bc = bloom.getContext('2d');
+        bc.filter = 'brightness(1.5) contrast(2.4) blur(2px)';
+        bc.drawImage(canvas, 0, 0, hw, hh);
+        bc.filter = 'none';
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = Math.min(0.4, (preset.halation || 0) * 0.30 * k);
+        ctx.drawImage(bloom, 0, 0, w, h);
+        ctx.restore();
+      }
+
       // grain (cheap: one tiled drawImage)
       if (!noise) buildNoise();
       ctx.save();
-      ctx.globalAlpha = Math.min(0.5, ((preset.grain || 0) * 0.45));
+      ctx.globalAlpha = Math.min(0.5, ((preset.grain || 0) * 0.45 * k));
       ctx.globalCompositeOperation = 'overlay';
       const pat = ctx.createPattern(noise, 'repeat');
       ctx.fillStyle = pat;
       ctx.fillRect(0, 0, w, h);
       ctx.restore();
 
+      // light leak — a coloured edge streak, fixed for the whole clip
+      if ((preset.leak || 0) > 0 && leak) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const a = Math.min(0.6, preset.leak * 0.42 * k);
+        let lg;
+        if (leak.edge === 0) lg = ctx.createLinearGradient(0, 0, w * leak.span, 0);
+        else if (leak.edge === 1) lg = ctx.createLinearGradient(w, 0, w * (1 - leak.span), 0);
+        else if (leak.edge === 2) lg = ctx.createLinearGradient(0, 0, 0, h * leak.span);
+        else lg = ctx.createLinearGradient(0, h, 0, h * (1 - leak.span));
+        lg.addColorStop(0, hexToRgba(leak.color, a));
+        lg.addColorStop(0.5, hexToRgba(leak.color, a * 0.35));
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+
       // vignette
       const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.30, w / 2, h / 2, Math.max(w, h) * 0.72);
       g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.85, 0.10 + (preset.vignette || 0) * 0.55).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.85, 0.10 + (preset.vignette || 0) * 0.55 * k).toFixed(3) + ')');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
 
@@ -1711,6 +1921,7 @@ const Video = (() => {
     canvas.height = src.videoHeight || 1280;
     ctx = canvas.getContext('2d', { willReadFrequently: false });
 
+    initLeak(opts.getPreset());
     drawFrame();
     const cstream = canvas.captureStream(30);
 
@@ -1841,202 +2052,6 @@ const Video = (() => {
     bakeSlowMotion, setCaption, getCaption,
     liveSupported, setLiveCaptions
   };
-})();
-
-</script>
-<script>
-/* FaceCam — 3D intro animation.
- *
- * Sequence (about 3.2s, tap to skip):
- *   1. a dotted 3D globe spins up out of the dark
- *   2. a camera-shutter iris closes over it with a flash  (the "photo click")
- *   3. the iris opens and the FaceCam wordmark scales in with the tagline
- *
- * Pure canvas maths — no 3D library, no assets, no network.
- */
-const Intro = (() => {
-  let canvas = null, ctx = null, raf = null;
-  let W = 0, H = 0, dpr = 1;
-  let t0 = 0, running = false, finished = false;
-  let onDone = null;
-  const pts = [];
-
-  const SPIN_END = 1250;
-  const IRIS_END = 1600;
-  const TOTAL = 3200;
-
-  function buildPoints() {
-    if (pts.length) return;
-    for (let lat = -80; lat <= 80; lat += 9) {
-      const rr = Math.cos(lat * Math.PI / 180);
-      const y = Math.sin(lat * Math.PI / 180);
-      const n = Math.max(6, Math.round(40 * rr));
-      for (let i = 0; i < n; i++) {
-        const lon = (i / n) * Math.PI * 2;
-        pts.push([Math.cos(lon) * rr, y, Math.sin(lon) * rr]);
-      }
-    }
-  }
-
-  function resize() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    const r = canvas.getBoundingClientRect();
-    W = Math.max(1, Math.round(r.width));
-    H = Math.max(1, Math.round(r.height));
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  function ease(t) { return t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t); }
-  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-
-  function draw(now) {
-    const t = now - t0;
-    ctx.clearRect(0, 0, W, H);
-
-    const bg = ctx.createRadialGradient(W / 2, H * 0.44, 0, W / 2, H * 0.44, Math.max(W, H) * 0.75);
-    bg.addColorStop(0, '#1b1226');
-    bg.addColorStop(0.55, '#0c0a12');
-    bg.addColorStop(1, '#06060a');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
-
-    const spin = ease(clamp01(t / SPIN_END));
-    const ang = spin * Math.PI * 1.35;
-    const grow = 0.55 + 0.45 * ease(clamp01(t / 700));
-    const R = Math.min(W, H) * 0.26 * grow;
-    const cx = W / 2;
-    const cy = H * 0.44;
-    const fade = t < IRIS_END ? 1 : 1 - clamp01((t - IRIS_END) / 500);
-
-    if (fade > 0.01) {
-      const halo = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.9);
-      halo.addColorStop(0, 'rgba(255,122,61,0.20)');
-      halo.addColorStop(1, 'rgba(255,122,61,0)');
-      ctx.fillStyle = halo;
-      ctx.fillRect(0, 0, W, H);
-
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        const x = p[0] * Math.cos(ang) - p[2] * Math.sin(ang);
-        const z = p[0] * Math.sin(ang) + p[2] * Math.cos(ang);
-        const y = p[1];
-        const persp = 1 / (1.9 - z * 0.55);
-        const sx = cx + x * R * persp * 1.9;
-        const sy = cy + y * R * persp * 1.9;
-        const depth = (z + 1) / 2;
-        ctx.globalAlpha = fade * (0.16 + 0.84 * depth);
-        const size = 0.9 + 1.9 * depth;
-        ctx.fillStyle = depth > 0.72 ? '#ffd9b0' : '#ff8a4d';
-        ctx.beginPath();
-        ctx.arc(sx, sy, size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    if (t > SPIN_END - 150) {
-      const c = clamp01((t - (SPIN_END - 150)) / (IRIS_END - SPIN_END + 150));
-      const close = c < 0.5 ? ease(c / 0.5) : 1 - ease((c - 0.5) / 0.5);
-      const maxR = Math.hypot(W, H) * 0.62;
-      const openR = maxR * (1 - close);
-      if (close > 0.02) {
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.fillStyle = '#0a0a0e';
-        for (let i = 0; i < 6; i++) {
-          ctx.save();
-          ctx.rotate((i / 6) * Math.PI * 2 + close * 0.5);
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(openR, -openR * 0.62);
-          ctx.lineTo(openR, openR * 0.62);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-        ctx.restore();
-      }
-      const ft = clamp01(1 - Math.abs(t - (IRIS_END - 120)) / 220);
-      if (ft > 0) {
-        ctx.fillStyle = 'rgba(255,255,255,' + (ft * 0.85).toFixed(3) + ')';
-        ctx.fillRect(0, 0, W, H);
-      }
-    }
-
-    const wt = clamp01((t - (IRIS_END + 180)) / 900);
-    if (wt > 0) {
-      const e = ease(wt);
-      ctx.save();
-      ctx.translate(W / 2, H * 0.62);
-      ctx.scale(0.82 + 0.18 * e, 0.82 + 0.18 * e);
-      ctx.globalAlpha = e;
-      const size = Math.min(W * 0.17, 62);
-      ctx.font = '800 ' + size + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const grad = ctx.createLinearGradient(-W * 0.3, 0, W * 0.3, 0);
-      grad.addColorStop(0, '#ffb26b');
-      grad.addColorStop(1, '#ff4d8d');
-      ctx.fillStyle = grad;
-      ctx.fillText('FaceCam', 0, 0);
-
-      const tag = clamp01((t - (IRIS_END + 700)) / 700);
-      if (tag > 0) {
-        ctx.globalAlpha = ease(tag) * 0.85;
-        ctx.font = '600 ' + Math.round(size * 0.26) + 'px -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-        ctx.fillStyle = '#8d8a85';
-        ctx.fillText('VINTAGE  \u00B7  B&W  \u00B7  BEAUTY  \u00B7  VIDEO', 0, size * 1.05);
-      }
-      ctx.restore();
-    }
-
-    if (t >= TOTAL && !finished) {
-      finished = true;
-      running = false;
-      if (onDone) onDone();
-      return;
-    }
-    if (running) raf = requestAnimationFrame(loop);
-  }
-
-  function loop(now) { draw(now); }
-
-  function start(done) {
-    canvas = document.getElementById('intro-canvas');
-    if (!canvas) { if (done) done(); return; }
-    ctx = canvas.getContext('2d');
-    buildPoints();
-    resize();
-    onDone = done;
-    finished = false;
-    running = true;
-    t0 = performance.now();
-    draw(t0);
-    raf = requestAnimationFrame(loop);
-
-    canvas.addEventListener('click', skip, { once: true });
-    canvas.addEventListener('touchstart', skip, { once: true });
-    // safety: never let a throttled/paused tab trap the user on the intro
-    setTimeout(skip, 6000);
-  }
-
-  function skip() {
-    if (finished) return;
-    finished = true;
-    running = false;
-    if (raf) cancelAnimationFrame(raf);
-    if (onDone) onDone();
-  }
-
-  function stop() {
-    running = false;
-    if (raf) cancelAnimationFrame(raf);
-    raf = null;
-  }
-
-  return { start, skip, stop };
 })();
 
 </script>
@@ -2401,6 +2416,7 @@ const Pro = (() => {
     family: 'vintage',
     mode: 'photo',
     speed: 1,
+    intensity: 1,
     facing: 'environment',
     flash: false,
     torchAvailable: false,
@@ -2573,7 +2589,7 @@ const Pro = (() => {
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    const vintage = groupOf(cam) !== 'beauty';
+    const vintage = groupOf(cam) === 'vintage';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const f = $('#live-frame');
     f.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
@@ -2598,8 +2614,9 @@ const Pro = (() => {
   }
 
   function developShot(canvas, cam, settings) {
-    if (groupOf(cam) === 'beauty') { Effects.applyBeauty(canvas, cam.beauty); return canvas; }
-    Effects.process(canvas, cam, settings);
+    const k = state.intensity == null ? 1 : state.intensity;
+    if (groupOf(cam) === 'beauty') { Effects.applyBeauty(canvas, cam.beauty, k); return canvas; }
+    Effects.process(canvas, cam, Object.assign({}, settings, { intensity: k }));
     return Effects.withBranding(canvas, cam, settings);
   }
 
@@ -2949,6 +2966,7 @@ const Pro = (() => {
 
   function setFamily(g) {
     state.family = g;
+    document.body.dataset.family = g;
     $$('#family-row .fam').forEach(b => b.classList.toggle('active', b.getAttribute('data-group') === g));
     const first = CAMERAS.filter(c => groupOf(c) === g)[0];
     if (first && groupOf(cameraById(state.cameraId)) !== g) selectCamera(first.id);
@@ -3018,9 +3036,9 @@ const Pro = (() => {
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    ['beauty', 'bw', 'vintage'].forEach(g => {
+    ['beauty', 'vintage'].forEach(g => {
       const og = document.createElement('optgroup');
-      og.label = g === 'beauty' ? 'Beauty' : (g === 'bw' ? 'Black & White' : 'Vintage');
+      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
       CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
         const o = document.createElement('option');
         o.value = c.id; o.textContent = c.name;
@@ -3119,6 +3137,15 @@ const Pro = (() => {
 
     $('#caption-input').addEventListener('input', e => Video.setCaption(e.target.value));
 
+    const intensity = $('#intensity');
+    if (intensity) {
+      intensity.addEventListener('input', () => {
+        state.intensity = parseFloat(intensity.value);
+        const v = $('#intensity-val');
+        if (v) v.textContent = Math.round(state.intensity * 100) + '%';
+      });
+    }
+
     $('#live-captions').addEventListener('change', e => {
       if (e.target.checked) {
         const ok = Video.setLiveCaptions(true, txt => { /* drawn onto the recording */ });
@@ -3185,7 +3212,6 @@ const Pro = (() => {
 
     $('#fallback-demo').addEventListener('click', startDemo);
     $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
-    $('#intro-skip').addEventListener('click', () => Intro.skip());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';
@@ -3209,30 +3235,50 @@ const Pro = (() => {
     const s = store.settings();
     state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera)) ? s.defaultCamera : 'nomo_135_b';
     state.family = groupOf(cameraById(state.cameraId));
+    document.body.dataset.family = state.family;
 
     bind();
     Pro.init({ getTrack: () => (state.stream ? state.stream.getVideoTracks()[0] : null) });
     Video.init({
       getSource: () => (state.demo ? state.demoSource : $('#video')),
       getPreset: () => cameraById(state.cameraId),
-      getSettings: () => store.settings()
+      getSettings: () => store.settings(),
+      getIntensity: () => (state.intensity == null ? 1 : state.intensity)
     });
 
     applyLiveLook();
     renderStrip();
     setMode('photo');
     renderMiniThumb();
-    show('screen-intro');
-    Intro.start(afterIntro);
+    runIntro();
   }
 
-  function afterIntro() {
-    if (store.seen()) {
-      show('screen-viewfinder');
-      startCamera().then(applyLiveLook);
-    } else {
-      show('screen-onboarding');
-    }
+  /* ------------------------------------------------------------------ *
+   * 3D intro
+   * ------------------------------------------------------------------ */
+  function proceedFromIntro() {
+    if (store.seen()) { show('screen-viewfinder'); startCamera().then(applyLiveLook); }
+    else show('screen-onboarding');
+  }
+
+  function runIntro() {
+    const el = $('#screen-intro');
+    show('screen-intro');
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (el) el.classList.remove('playing');
+      proceedFromIntro();
+    };
+    if (!el) { proceedFromIntro(); return; }
+    el.classList.remove('playing');
+    void el.offsetWidth;            // force the animation to restart
+    el.classList.add('playing');
+    setTimeout(finish, 3000);
+    el.addEventListener('click', finish, { once: true });
+    const skip = $('#intro-skip');
+    if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); finish(); }, { once: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

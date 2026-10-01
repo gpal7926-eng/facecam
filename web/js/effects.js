@@ -267,19 +267,32 @@ const Effects = (() => {
     ctx.restore();
   }
 
+  /* ---------- look intensity: scale a preset's strength by k (0.4..1.6) ---------- */
+  function scaleTone(tone, k) {
+    if (!tone || k === 1) return tone;
+    return {
+      lift: (tone.lift || 0) * k,
+      gamma: 1 + ((tone.gamma == null ? 1 : tone.gamma) - 1) * k,
+      gain: 1 + ((tone.gain == null ? 1 : tone.gain) - 1) * k,
+      warmth: (tone.warmth || 0) * k,
+      sat: 1 + ((tone.sat == null ? 1 : tone.sat) - 1) * k
+    };
+  }
+
   /* ---------- run the full randomised pipeline ---------- */
   function process(canvas, preset, settings) {
     settings = settings || {};
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
+    const k = settings.intensity == null ? 1 : settings.intensity;
 
-    applyTone(canvas, preset.tone);
-    halation(ctx, w, h, (preset.halation || 0) * rand(0.7, 1.3));
-    grain(ctx, w, h, Math.min(1, preset.grain * rand(0.6, 1.4)));
-    chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * rand(0.6, 1.4)));
-    lightLeak(ctx, w, h, preset.leak * rand(0.4, 1.6), preset.leakColors);
-    vignette(ctx, w, h, Math.min(1, preset.vignette * rand(0.7, 1.3)));
-    dust(ctx, w, h, Math.min(1, preset.dust * rand(0.5, 1.5)));
+    applyTone(canvas, scaleTone(preset.tone, k));
+    halation(ctx, w, h, (preset.halation || 0) * k * rand(0.7, 1.3));
+    grain(ctx, w, h, Math.min(1, preset.grain * k * rand(0.6, 1.4)));
+    chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * k * rand(0.6, 1.4)));
+    lightLeak(ctx, w, h, preset.leak * k * rand(0.4, 1.6), preset.leakColors);
+    vignette(ctx, w, h, Math.min(1, preset.vignette * k * rand(0.7, 1.3)));
+    dust(ctx, w, h, Math.min(1, preset.dust * k * rand(0.5, 1.5)));
     if (settings.border !== false) frame(ctx, w, h, preset.frame);
     if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h);
     return canvas;
@@ -368,25 +381,26 @@ const Effects = (() => {
   }
 
   /* Clean, natural, phone-camera enhance. */
-  function applyBeauty(canvas, b) {
+  function applyBeauty(canvas, b, intensity) {
     b = b || {};
+    const k = intensity == null ? 1 : intensity;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const w = canvas.width, h = canvas.height;
     const min = Math.min(w, h);
 
     // 1. base grade: exposure, gentle contrast, natural saturation, warmth
     applyTone(canvas, {
-      lift: b.exposure || 0,
-      gamma: b.contrast || 1,
+      lift: (b.exposure || 0) * k,
+      gamma: 1 + ((b.contrast == null ? 1 : b.contrast) - 1) * k,
       gain: 1,
-      warmth: b.warmth || 0,
-      sat: b.sat == null ? 1 : b.sat
+      warmth: (b.warmth || 0) * k,
+      sat: 1 + ((b.sat == null ? 1 : b.sat) - 1) * k
     });
 
     // 2. skin-aware smoothing. Blemishes are LOW-amplitude detail, so a high
     //    threshold smooths them away while eyes, brows and hair (high detail)
     //    survive. Weighting is strongest on skin tones.
-    const smooth = b.smooth || 0;
+    const smooth = (b.smooth || 0) * k;
     if (smooth > 0) {
       const blurred = blurCopy(canvas, Math.max(3, Math.round(min * 0.020)));
       const img = ctx.getImageData(0, 0, w, h);
@@ -434,7 +448,7 @@ const Effects = (() => {
     }
 
     // 3. soft highlight glow
-    const glow = b.glow || 0;
+    const glow = (b.glow || 0) * k;
     if (glow > 0) {
       const t = document.createElement('canvas');
       t.width = w; t.height = h;
@@ -451,7 +465,7 @@ const Effects = (() => {
 
     // 4. clarity + unsharp, but ONLY on real edges. Without this gate the
     //    sharpening puts the blemishes straight back that step 2 just removed.
-    const sharpen = b.sharpen || 0;
+    const sharpen = (b.sharpen || 0) * k;
     if (sharpen > 0) {
       const soft = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
       const fine = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
@@ -492,7 +506,7 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, withBranding, applyBeauty, blend, rand, pick };
+  return { capture, process, withBranding, applyBeauty, blend, rand, pick, scaleTone };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }

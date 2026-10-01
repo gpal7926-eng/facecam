@@ -1,15 +1,12 @@
 # FaceCam - Android Setup Guide
 
 FaceCam is a **100% offline, completely free** camera app (Kotlin + Jetpack
-Compose). It ships **three** camera families plus a full video mode:
+Compose). It ships two camera families plus a full video mode:
 
-- **Vintage** - 18 film-camera simulations with procedural grain, light leaks,
-  vignette, dust, film frames, date stamps and the FaceCam branding band,
-  including a decade series (50s / 60s / 70s / 80s / 90s).
-- **B&W** - 5 black-and-white cameras. Their colour matrices genuinely
-  desaturate to monochrome (equal R/G/B luminance weights), and they run the
-  same analog pipeline as the vintage cameras. The warm one adds a sepia tint.
-- **Beauty** - 10 clean, iPhone-like cameras that enhance a photo (exposure,
+- **Vintage** - 20 film-camera simulations with procedural grain, light leaks,
+  vignette, dust, film frames, date stamps and the FaceCam branding band -
+  including the 1950s-1990s decade looks and two black-and-white stocks.
+- **Beauty** - 9 clean, iPhone-like cameras that enhance a photo (exposure,
   contrast, saturation, warm-neutral white balance, edge-aware skin smoothing,
   sharpening and a soft glow) with **no** film character at all. On-device ML
   face detection steers the skin smoothing onto the face.
@@ -17,8 +14,6 @@ Compose). It ships **three** camera families plus a full video mode:
   after the fact, burn in captions, and export in slow motion (0.5x / 0.25x).
 - **Subtitles** - a typed caption burned onto the clip, a sidecar `.srt`, and an
   optional **live captions** mode using Android's on-device SpeechRecognizer.
-- **Intro** - a procedural 3D animated intro (rotating dotted globe, shutter
-  flash, wordmark) drawn with Compose Canvas only.
 
 There is **no monetization of any kind**: no Google Play Billing, no AdMob, no
 in-app purchases, no paywall, no PRO membership and no ads. Every camera is
@@ -148,33 +143,26 @@ policy URL (Play requires a privacy policy URL for every listing).
 ## 4. Camera presets
 
 All cameras live as JSON in `app/src/main/assets/cameras/`. Each file has an
-`id`, `name`, `tag`, `description`, a **`group`** (`"vintage"`, `"bw"` or
-`"beauty"`) and a 20-float `colorMatrix`. The rest of the fields depend on the
-family:
+`id`, `name`, `tag`, `description`, a **`group`** (`"vintage"` or `"beauty"`)
+and a 20-float `colorMatrix`. The rest of the fields depend on the family:
 
-### Vintage cameras (`"group": "vintage"`) - 18 presets
+### Vintage cameras (`"group": "vintage"`) - 20 presets
 
 `nomo_135_b`, `nomo_135_m`, `nomo_135_p`, `toy_f`, `toy_k`, `roma`, `fr2`,
-`film_2007`, `eats`, `ins_2`, `swirly_2`, `range_67`, `wide_17`, plus the decade
-series `vintage_50s`, `vintage_60s`, `vintage_70s`, `vintage_80s` and
-`vintage_90s`.
+`film_2007`, `eats`, `ins_2`, `swirly_2`, `range_67`, `wide_17`, `decade_50s`,
+`decade_60s`, `decade_70s`, `decade_80s`, `decade_90s`, `mono_bw`, `mono_noir`.
 
-### Black & white cameras (`"group": "bw"`) - 5 presets
+### Beauty cameras (`"group": "beauty"`) - 9 presets
 
-`bw_classic`, `bw_high`, `bw_warm`, `bw_cool`, `bw_fade`.
+`beauty_natural`, `beauty_bright`, `beauty_warm`, `beauty_portrait`,
+`beauty_soft`, `beauty_vivid`, `beauty_cool`, `beauty_golden`, `beauty_mono`.
 
-Their colour matrices genuinely desaturate to grey: every output channel is the
-same luminance-weighted mix of R/G/B (weights `0.2126 / 0.7152 / 0.0722`), so
-colour information is fully removed. `bw_warm` uses the classic sepia matrix to
-add a warm brown tint. B&W cameras use the **same** analog tuning fields as the
-vintage cameras (`grain`, `leak`, `vignette`, `frame`, `dateStamp`, `instant`,
-`overlay`) and run the same pipeline.
+They also carry the analog tuning consumed by `film/AnalogEffects.kt`:
+`grain`, `leak`, `vignette`, `frame`, `dateStamp`, `instant` and `overlay`.
 
-### Beauty cameras (`"group": "beauty"`) - 10 presets
+### Beauty cameras (`"group": "beauty"`) - 4 presets
 
-`beauty_natural`, `beauty_bright`, `beauty_warm`, `beauty_portrait`, plus
-`beauty_soft`, `beauty_glow`, `beauty_radiance`, `beauty_matte`, `beauty_clean`
-and `beauty_rich`.
+`beauty_natural`, `beauty_bright`, `beauty_warm`, `beauty_portrait`.
 
 Each carries a `beauty` object with the tuning consumed by
 `film/BeautyEffects.kt`:
@@ -195,7 +183,7 @@ for the overlay/texture notes.
 
 ---
 
-## 5. The three rendering pipelines
+## 5. The two rendering pipelines
 
 The chosen camera's `group` selects the pipeline, wired in
 `ui/FaceCamViewModel.kt`:
@@ -203,7 +191,6 @@ The chosen camera's `group` selects the pipeline, wired in
 | Group     | Pipeline | Output |
 |-----------|----------|--------|
 | `vintage` | `film/AnalogEffects.kt` -> frame -> date stamp -> `film/BrandingRenderer.kt` | film look with grain, leaks, vignette, dust, frame, date stamp and the branding band |
-| `bw`      | same as `vintage` (`film/AnalogEffects.kt` + frame + date stamp + branding) | black-and-white film look - the matrix removes all colour |
 | `beauty`  | `film/BeautyEffects.kt` | clean, well-exposed phone photo - **no** grain, leaks, vignette, frame, date stamp or branding |
 
 ### BeautyEffects pipeline
@@ -423,9 +410,8 @@ The UI was redesigned to feel like a current-generation social camera app:
   `ui/components/Glass.kt`.
 - A **bottom navigation bar** - Camera / Gallery / Modes
   (`ui/components/BottomNav.kt`), wired in `ui/navigation/FaceCamNav.kt`.
-- **Large rounded mode chips** for Photo / Video and Vintage / B&W / Beauty
-  (`ModeChip` and `SegmentedTabs` in `ui/components/Glass.kt` and
-  `ui/components/Common.kt`).
+- **Large rounded mode chips** for Photo / Video and Vintage / Beauty
+  (`ModeChip` in `ui/components/Glass.kt`).
 - A **bigger, friendlier shutter** area with a gradient ring that becomes a
   record button in video mode.
 - **Smoother animated transitions** (`AnimatedVisibility` for the video panel,
@@ -434,58 +420,6 @@ The UI was redesigned to feel like a current-generation social camera app:
 
 The screens live in `ui/screens/` (Viewfinder, Gallery, Cameras, Settings) and
 the shared atoms in `ui/components/`.
-
----
-
-## 7F. The 3D animated intro
-
-On launch the app plays a short, fully procedural intro - no external 3D
-library, no assets, no network. It lives in
-`ui/screens/IntroScreen.kt` and runs for about **3 seconds**, and a tap anywhere
-skips it straight into the app. Three acts:
-
-1. **Globe (0.0s - 1.2s)** - a rotating 3D sphere drawn as a dotted wireframe.
-   Latitude and longitude rings are generated in 3D, spun around the vertical
-   axis, tilted slightly around X so the poles are visible, and projected to 2D
-   with a perspective divide (`scale = focal / (focal + z)`). Dot size and
-   opacity are shaded by depth, so the far side reads as behind the near side.
-2. **Shutter (1.2s - 1.9s)** - a camera-shutter flash: six aperture blades swing
-   open like an iris while a bright glow blooms through, capped by a
-   full-screen white flash that rises and falls.
-3. **Wordmark (1.9s - 3.0s)** - the **FaceCam** wordmark fades and scales in
-   with the tagline underneath.
-
-Everything is drawn with Compose `Canvas` and `androidx.compose.animation`
-only. The intro is the navigation graph's `startDestination` (`Routes.INTRO` in
-`ui/navigation/FaceCamNav.kt`); when it finishes (or is skipped) it routes to
-onboarding on first launch, or straight to the viewfinder afterwards.
-
----
-
-## 7G. The NOMO-CAM-style viewfinder
-
-The viewfinder (`ui/screens/ViewfinderScreen.kt`) was refined to feel like
-NOMO CAM:
-
-- a **full-bleed preview** with the live tint + vignette overlay;
-- a **prominent horizontal strip of camera models** across the bottom
-  (`ui/components/CameraStrip.kt`), each with a realistic-looking thumbnail and
-  the camera name underneath, the active one highlighted with a bright ring;
-- a **big round shutter button** centred below the strip, flanked by the
-  last-shot thumbnail (left) and the lens-flip button (right);
-- a **minimal top bar** (settings on the left; framing guide, MANUAL, cameras
-  and double-exposure on the right);
-- a **last-shot thumbnail** in the bottom-left corner (tap it to open the
-  gallery);
-- **family pills** (Vintage / B&W / Beauty) that switch which cameras the strip
-  shows.
-
-The strip thumbnails are drawn procedurally with Compose `Canvas` - no texture
-assets and no network. The little scene is tinted by running a neutral reference
-colour through the camera's own 20-float colour matrix, so each thumbnail
-genuinely previews its grade (monochrome cameras read grey, the 70s camera reads
-orange, the 60s camera reads cool). Analog cameras (vintage / B&W) additionally
-get grain and a vignette in the thumbnail.
 
 ---
 
@@ -574,11 +508,7 @@ an APK:
 ## 9. Notes and assumptions
 
 - **Free by design.** There is no billing, no ads, no paywall and no PRO
-  membership. All 33 cameras (18 vintage + 5 B&W + 10 beauty) are unlocked for
-  everyone.
-- **Intro by design.** The 3D intro (`ui/screens/IntroScreen.kt`) is pure Compose
-  Canvas - no external 3D library, no assets and no network - and can be skipped
-  with a tap.
+  membership. All 29 cameras (20 vintage + 9 beauty) are unlocked for everyone.
 - **Offline by design.** App logic makes no network calls and the manifest
   declares no `INTERNET` permission. The optional GPU library and the manual
   mode are 100% on-device.
@@ -600,7 +530,7 @@ an APK:
 - **Settings** are stored in `SharedPreferences`.
 - **Beauty photos** are deliberately clean: no grain, leaks, vignette, frame,
   date stamp or branding band. The date-stamp / border / watermark settings only
-  affect the analog cameras (vintage **and** B&W).
+  affect vintage cameras.
 - **Branding band** colour is derived from the camera's frame style (cream /
   off-white by default). The band is appended after the frame and date stamp.
 - **Manual mode** is opt-in; the simple viewfinder is unchanged when it is off.
