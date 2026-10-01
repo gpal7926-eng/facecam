@@ -72,7 +72,7 @@ const Video = (() => {
     if (canvas.width !== sw || canvas.height !== sh) { canvas.width = sw; canvas.height = sh; }
 
     const w = canvas.width, h = canvas.height;
-    const vintage = (preset && preset.group || 'vintage') === 'vintage';
+    const vintage = ((preset && preset.group) || 'vintage') !== 'beauty';
 
     ctx.filter = (preset && preset.filter) || 'none';
     ctx.drawImage(src, 0, 0, w, h);

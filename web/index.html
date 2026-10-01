@@ -11,6 +11,12 @@
 <body>
 <div id="app">
 
+  <!-- 3D intro -->
+  <section class="screen" id="screen-intro">
+    <canvas id="intro-canvas"></canvas>
+    <button class="skip-btn" id="intro-skip">Skip</button>
+  </section>
+
   <!-- Splash -->
   <section class="screen" id="screen-splash">
     <div class="splash-inner">
@@ -104,6 +110,7 @@
       <div class="vf-bottom">
         <div class="family-row" id="family-row">
           <button class="fam active" data-group="vintage">Vintage</button>
+          <button class="fam" data-group="bw">B&amp;W</button>
           <button class="fam" data-group="beauty">Beauty</button>
         </div>
 
@@ -240,6 +247,7 @@
 <script src="js/cameras.js"></script>
 <script src="js/effects.js"></script>
 <script src="js/video.js"></script>
+<script src="js/intro.js"></script>
 <script src="js/pro.js"></script>
 <script src="js/app.js"></script>
 </body>

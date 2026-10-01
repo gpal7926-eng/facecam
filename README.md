@@ -24,22 +24,28 @@ This repository contains **two complete implementations** of the same app:
 
 ---
 
-## Cameras
+## Cameras — 29 looks in three families
 
-**Vintage — 13 film simulations.** FaceCam 135 B / M / P, TOY F / K, ROMA, FR2, 2007, EATS,
-INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. Each has its own colour curve, grain,
-light-leak behaviour, vignette and frame.
+**Vintage — 18 looks.** The decades: **50s Kodachrome, 60s Ektachrome, 70s Faded, 80s Punch,
+90s Disposable**. Plus the film simulations: FaceCam 135 B / M / P, TOY F / K, ROMA, FR2,
+2007, EATS, INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. Each has its own colour curve,
+grain, light-leak behaviour, vignette and frame.
 
-**Beauty — 4 clean looks.** Natural, Bright, Warm and Portrait. These apply an iPhone-like
-enhance instead of a film look: exposure lift, a gentle contrast curve, natural saturation,
-highlight rolloff, edge-aware skin smoothing (flat skin softens while edges stay crisp),
-a soft highlight glow, and unsharp-mask sharpening. No grain, no leaks, no vignette, no
-frame — a clean photo.
+**Black & White — 3 looks.** Classic silver-grey, high-contrast deep blacks, and a warm
+sepia tone. These genuinely desaturate, and keep the silver grain and vignette.
+
+**Beauty — 8 looks.** Natural, Bright, Warm, Portrait, Soft, Glow, Radiance and Matte.
+These apply an iPhone-like enhance instead of a film look: exposure lift, a gentle contrast
+curve, natural saturation, highlight rolloff, edge-aware skin smoothing (flat skin softens
+while edges stay crisp), a soft highlight glow, and unsharp-mask sharpening. No grain, no
+leaks, no vignette, no frame — a clean photo.
 
 ---
 
 ## Features
 
+- **3D intro animation** — the app opens on a spinning dotted 3D globe, a camera-shutter
+  flash, then the FaceCam wordmark. Tap to skip.
 - **Photo and Video modes** — flip between a still camera and a video camera with one chip.
 - **Video recording with the look baked in** — the vintage film or beauty look (colour curve,
   grain, vignette, frame) and your caption are rendered into every recorded frame, so the

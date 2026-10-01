@@ -26,8 +26,8 @@ import com.facecam.app.ui.components.CameraChip
 import com.facecam.app.ui.components.SegmentedTabs
 
 /**
- * Bottom sheet for choosing the active camera, split into two tabs - Vintage
- * and Beauty. Every camera is free, so nothing is ever locked.
+ * Bottom sheet for choosing the active camera, split into three tabs -
+ * Vintage, B&W and Beauty. Every camera is free, so nothing is ever locked.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,11 +53,11 @@ fun CameraPickerSheet(
             Spacer(Modifier.height(12.dp))
 
             SegmentedTabs(
-                options = listOf("Vintage", "Beauty"),
-                selectedIndex = if (group == CameraGroup.BEAUTY) 1 else 0,
+                options = CameraGroup.ordered.map { CameraGroup.label(it) },
+                selectedIndex = CameraGroup.ordered.indexOf(group).coerceAtLeast(0),
                 onSelect = { index ->
                     viewModel.setPickerGroup(
-                        if (index == 1) CameraGroup.BEAUTY else CameraGroup.VINTAGE
+                        CameraGroup.ordered.getOrElse(index) { CameraGroup.VINTAGE }
                     )
                 },
                 modifier = Modifier.fillMaxWidth()

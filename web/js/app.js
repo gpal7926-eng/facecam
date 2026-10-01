@@ -262,7 +262,7 @@
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    const vintage = groupOf(cam) === 'vintage';
+    const vintage = groupOf(cam) !== 'beauty';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const f = $('#live-frame');
     f.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
@@ -707,9 +707,9 @@
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    ['beauty', 'vintage'].forEach(g => {
+    ['beauty', 'bw', 'vintage'].forEach(g => {
       const og = document.createElement('optgroup');
-      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
+      og.label = g === 'beauty' ? 'Beauty' : (g === 'bw' ? 'Black & White' : 'Vintage');
       CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
         const o = document.createElement('option');
         o.value = c.id; o.textContent = c.name;
@@ -874,6 +874,7 @@
 
     $('#fallback-demo').addEventListener('click', startDemo);
     $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
+    $('#intro-skip').addEventListener('click', () => Intro.skip());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';
@@ -910,11 +911,17 @@
     renderStrip();
     setMode('photo');
     renderMiniThumb();
-    show('screen-splash');
-    setTimeout(() => {
-      if (store.seen()) { show('screen-viewfinder'); startCamera().then(applyLiveLook); }
-      else show('screen-onboarding');
-    }, 1400);
+    show('screen-intro');
+    Intro.start(afterIntro);
+  }
+
+  function afterIntro() {
+    if (store.seen()) {
+      show('screen-viewfinder');
+      startCamera().then(applyLiveLook);
+    } else {
+      show('screen-onboarding');
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -10,6 +10,7 @@ import com.facecam.app.ui.components.HomeTab
 import com.facecam.app.ui.screens.CamerasScreen
 import com.facecam.app.ui.screens.DoubleExposureScreen
 import com.facecam.app.ui.screens.GalleryScreen
+import com.facecam.app.ui.screens.IntroScreen
 import com.facecam.app.ui.screens.OnboardingScreen
 import com.facecam.app.ui.screens.SettingsScreen
 import com.facecam.app.ui.screens.SplashScreen
@@ -17,6 +18,7 @@ import com.facecam.app.ui.screens.ViewfinderScreen
 
 /** All navigation destinations in FaceCam. */
 object Routes {
+    const val INTRO = "intro"
     const val SPLASH = "splash"
     const val ONBOARDING = "onboarding"
     const val VIEWFINDER = "viewfinder"
@@ -27,8 +29,8 @@ object Routes {
 }
 
 /**
- * Root navigation graph. Starts at the splash screen, which routes to onboarding
- * on first launch or straight to the viewfinder afterwards.
+ * Root navigation graph. Starts at the 3D intro sequence, which routes to
+ * onboarding on first launch or straight to the viewfinder afterwards.
  */
 @Composable
 fun FaceCamNav(
@@ -37,8 +39,23 @@ fun FaceCamNav(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Routes.SPLASH
+        startDestination = Routes.INTRO
     ) {
+        composable(Routes.INTRO) {
+            IntroScreen(
+                onFinished = {
+                    val next = if (viewModel.settingsStore.onboardingComplete) {
+                        Routes.VIEWFINDER
+                    } else {
+                        Routes.ONBOARDING
+                    }
+                    navController.navigate(next) {
+                        popUpTo(Routes.INTRO) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Routes.SPLASH) {
             SplashScreen(
                 onFinished = {

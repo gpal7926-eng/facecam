@@ -22,11 +22,13 @@
     <!-- Camera picker -->
     <string name="picker_title">Cameras</string>
     <string name="picker_tab_vintage">Vintage</string>
+    <string name="picker_tab_bw">B&amp;W</string>
     <string name="picker_tab_beauty">Beauty</string>
 
     <!-- Cameras browser -->
     <string name="cameras_title">Cameras</string>
     <string name="cameras_vintage_title">Vintage film</string>
+    <string name="cameras_bw_title">Black &amp; white</string>
     <string name="cameras_beauty_title">Beauty</string>
     <string name="cameras_use">Use</string>
     <string name="cameras_in_use">In use</string>
@@ -67,6 +69,7 @@
     <string name="mode_photo">Photo</string>
     <string name="mode_video">Video</string>
     <string name="mode_vintage">Vintage</string>
+    <string name="mode_bw">B&amp;W</string>
     <string name="mode_beauty">Beauty</string>
     <string name="video_speed">Speed</string>
     <string name="video_high_fps_available">High-fps capture available</string>
@@ -81,6 +84,10 @@
 
     <!-- Framing guide -->
     <string name="viewfinder_face_guide">Centre on face guide</string>
+
+    <!-- Intro sequence -->
+    <string name="intro_tagline">film &amp; beauty camera</string>
+    <string name="intro_skip">tap to skip</string>
 
     <!-- Bottom navigation -->
     <string name="tab_camera">Camera</string>

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.facecam.app.film.CameraGroup
 import com.facecam.app.film.FilmPreset
 import com.facecam.app.ui.FaceCamViewModel
 import com.facecam.app.ui.components.FaceCamBottomBar
@@ -42,8 +43,8 @@ import com.facecam.app.ui.theme.Violet
 
 /**
  * The Modes screen: every camera - free for everyone - grouped into the Vintage
- * film and Beauty families, shown as modern glass cards. Tapping a card makes it
- * the active camera.
+ * film, B&W and Beauty families, shown as modern glass cards. Tapping a card
+ * makes it the active camera.
  */
 @Composable
 fun CamerasScreen(
@@ -52,8 +53,7 @@ fun CamerasScreen(
     onNavigate: (HomeTab) -> Unit = {}
 ) {
     val selected by viewModel.selectedCamera.collectAsState()
-    val vintage = viewModel.filmRepository.vintage()
-    val beauty = viewModel.filmRepository.beauty()
+    val families = viewModel.filmRepository.byFamily()
 
     Box(
         modifier = Modifier
@@ -80,40 +80,25 @@ fun CamerasScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item {
-                    Text(
-                        text = "Vintage film",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Violet,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                    )
-                }
-                items(vintage, key = { it.id }) { preset ->
-                    CameraCard(
-                        preset = preset,
-                        selected = preset.id == selected?.id,
-                        accent = FaceCamGradient,
-                        onUse = { viewModel.selectCamera(preset) }
-                    )
-                }
-
-                item {
-                    Text(
-                        text = "Beauty",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Magenta,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)
-                    )
-                }
-                items(beauty, key = { it.id }) { preset ->
-                    CameraCard(
-                        preset = preset,
-                        selected = preset.id == selected?.id,
-                        accent = Brush.linearGradient(listOf(Magenta, Violet)),
-                        onUse = { viewModel.selectCamera(preset) }
-                    )
+                families.forEach { (group, cameras) ->
+                    if (cameras.isEmpty()) return@forEach
+                    item(key = "header_$group") {
+                        Text(
+                            text = familyTitle(group),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = familyAccentColor(group),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)
+                        )
+                    }
+                    items(cameras, key = { it.id }) { preset ->
+                        CameraCard(
+                            preset = preset,
+                            selected = preset.id == selected?.id,
+                            accent = familyAccent(group),
+                            onUse = { viewModel.selectCamera(preset) }
+                        )
+                    }
                 }
 
                 item { Spacer(Modifier.height(104.dp)) }
@@ -186,4 +171,28 @@ private fun CameraCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/** Section header label for a camera family. */
+private fun familyTitle(group: String): String = when (group) {
+    CameraGroup.VINTAGE -> "Vintage film"
+    CameraGroup.BW -> "Black & white"
+    CameraGroup.BEAUTY -> "Beauty"
+    else -> CameraGroup.label(group)
+}
+
+/** Accent gradient used on a family's cards and chips. */
+private fun familyAccent(group: String): Brush = when (group) {
+    CameraGroup.VINTAGE -> FaceCamGradient
+    CameraGroup.BW -> Brush.linearGradient(listOf(Color(0xFFB9BCC6), Color(0xFF6E7280)))
+    CameraGroup.BEAUTY -> Brush.linearGradient(listOf(Magenta, Violet))
+    else -> FaceCamGradient
+}
+
+/** Solid accent colour used on a family's section header. */
+private fun familyAccentColor(group: String): Color = when (group) {
+    CameraGroup.VINTAGE -> Violet
+    CameraGroup.BW -> Color(0xFFB9BCC6)
+    CameraGroup.BEAUTY -> Magenta
+    else -> Violet
 }

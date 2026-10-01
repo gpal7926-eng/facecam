@@ -25,10 +25,22 @@ data class BeautyParams(
     val glow: Float = 0.10f
 )
 
-/** The two camera families shown in the picker. */
+/** The three camera families shown in the picker. */
 object CameraGroup {
     const val VINTAGE = "vintage"
+    const val BW = "bw"
     const val BEAUTY = "beauty"
+
+    /** Display order of the families in the picker tabs and the browser. */
+    val ordered: List<String> = listOf(VINTAGE, BW, BEAUTY)
+
+    /** Human-readable family label for tabs and section headers. */
+    fun label(group: String): String = when (group) {
+        VINTAGE -> "Vintage"
+        BW -> "B&W"
+        BEAUTY -> "Beauty"
+        else -> "Vintage"
+    }
 }
 
 /**
@@ -42,11 +54,15 @@ object CameraGroup {
  *       b0 b1 b2 b3 b4
  *       a0 a1 a2 a3 a4 ]
  *
- * A camera belongs to one of two families, given by [group]:
+ * A camera belongs to one of three families, given by [group]:
  *
  *  - [CameraGroup.VINTAGE] runs the procedural analog pipeline in
  *    [AnalogEffects] (grain, light leaks, vignette, dust, frame, date stamp and
  *    the FaceCam branding band).
+ *  - [CameraGroup.BW] is the black-and-white family. It runs the very same
+ *    analog pipeline as the vintage cameras (grain, vignette, frame, date
+ *    stamp, branding band), but its colour matrix genuinely desaturates the
+ *    image to monochrome.
  *  - [CameraGroup.BEAUTY] runs the clean [BeautyEffects] pipeline instead - no
  *    grain, leaks, vignette, frame, date stamp or branding, just an
  *    iPhone-like enhance. Beauty cameras carry a [beauty] parameter block.
@@ -60,7 +76,7 @@ data class FilmPreset(
     val description: String,
     /** Short tag burned into the FaceCam branding band, e.g. "35mm Classic". */
     val tag: String? = null,
-    /** "vintage" or "beauty" - which pipeline this camera runs. */
+    /** "vintage", "bw" or "beauty" - which family this camera belongs to. */
     val group: String = CameraGroup.VINTAGE,
     val matrix: FloatArray,
     /** Grain density, 0..1 (higher = more visible film grain). */
@@ -87,7 +103,16 @@ data class FilmPreset(
     val isBeauty: Boolean get() = group == CameraGroup.BEAUTY
 
     /** True when this camera belongs to the Vintage film family. */
-    val isVintage: Boolean get() = !isBeauty
+    val isVintage: Boolean get() = group == CameraGroup.VINTAGE
+
+    /** True when this camera belongs to the black-and-white family. */
+    val isBw: Boolean get() = group == CameraGroup.BW
+
+    /**
+     * True when this camera runs the analog (film) pipeline - i.e. the Vintage
+     * and B&W families. Beauty cameras are the only ones that do not.
+     */
+    val isAnalog: Boolean get() = !isBeauty
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

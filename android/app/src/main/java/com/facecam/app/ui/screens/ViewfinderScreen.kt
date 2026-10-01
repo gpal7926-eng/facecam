@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
@@ -86,11 +85,14 @@ import com.facecam.app.camera.pro.ProHudOverlay
 import com.facecam.app.film.CameraGroup
 import com.facecam.app.ml.FaceGuideAnalyzer
 import com.facecam.app.ui.FaceCamViewModel
+import com.facecam.app.ui.components.CameraStrip
 import com.facecam.app.ui.components.FaceCamBottomBar
 import com.facecam.app.ui.components.GlassPill
 import com.facecam.app.ui.components.HomeTab
+import com.facecam.app.ui.components.LastShotThumbnail
 import com.facecam.app.ui.components.ModeChip
 import com.facecam.app.ui.components.RecBadge
+import com.facecam.app.ui.components.SegmentedTabs
 import com.facecam.app.ui.components.glass
 import com.facecam.app.ui.theme.FaceCamGradient
 import com.facecam.app.ui.theme.Violet
@@ -102,9 +104,15 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * The live viewfinder. Shows a CameraX preview with a lightweight tint + vignette
- * overlay, the full set of capture controls (photo + video), the on-device
- * framing guide and an optional manual shooting HUD.
+ * The live viewfinder, styled after NOMO CAM: a full-bleed preview with a
+ * prominent horizontal strip of camera models across the bottom (each with a
+ * realistic-looking thumbnail and the camera name underneath), a big round
+ * shutter button centred below the strip, a minimal top bar and the last-shot
+ * thumbnail tucked into the bottom-left corner.
+ *
+ * Under the hood nothing changed: the same CameraX preview, live tint +
+ * vignette, on-device framing guide and optional manual HUD are all still here,
+ * along with the photo / video controls. Everything stays 100% on-device.
  */
 @Composable
 fun ViewfinderScreen(
@@ -122,10 +130,15 @@ fun ViewfinderScreen(
     val preset by viewModel.selectedCamera.collectAsState()
     val message by viewModel.message.collectAsState()
     val faceHint by viewModel.faceHint.collectAsState()
+    val lastShot by viewModel.lastDeveloped.collectAsState()
 
     var showPicker by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
     var captionDraft by remember { mutableStateOf("") }
+
+    // The family whose cameras are shown in the bottom strip.
+    val activeGroup = preset?.group ?: CameraGroup.VINTAGE
+    val stripCameras = viewModel.filmRepository.ofGroup(activeGroup)
 
     // Keep the caption field in sync with the ViewModel.
     LaunchedEffect(cameraState.typedCaption) {
@@ -233,7 +246,7 @@ fun ViewfinderScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Live preview.
+        // Full-bleed live preview.
         AndroidView(
             factory = { previewView },
             modifier = Modifier.fillMaxSize()
@@ -279,11 +292,11 @@ fun ViewfinderScreen(
             )
         }
 
-        // Top scrim + control bar.
+        // Minimal top bar: a short scrim with just the essential controls.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp)
+                .height(120.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
@@ -294,7 +307,7 @@ fun ViewfinderScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
                 .align(Alignment.TopCenter),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -311,15 +324,11 @@ fun ViewfinderScreen(
                     )
                 }
                 TextButton(onClick = { viewModel.toggleProMode() }) {
-                    Icon(
-                        Icons.Filled.Tune,
-                        contentDescription = "Manual mode",
-                        tint = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White
-                    )
                     Text(
                         text = "MANUAL",
                         color = if (proState.enabled) MaterialTheme.colorScheme.primary else Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
                     )
                 }
                 IconButton(onClick = onOpenCameras) {
@@ -331,41 +340,12 @@ fun ViewfinderScreen(
             }
         }
 
-        // Vintage / Beauty family chips (large rounded).
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 64.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ModeChip(
-                label = "Vintage",
-                selected = preset?.isVintage != false,
-                onClick = {
-                    viewModel.setPickerGroup(CameraGroup.VINTAGE)
-                    viewModel.filmRepository.ofGroup(CameraGroup.VINTAGE).firstOrNull()
-                        ?.let { viewModel.selectCamera(it) }
-                    showPicker = true
-                }
-            )
-            ModeChip(
-                label = "Beauty",
-                selected = preset?.isBeauty == true,
-                onClick = {
-                    viewModel.setPickerGroup(CameraGroup.BEAUTY)
-                    viewModel.filmRepository.ofGroup(CameraGroup.BEAUTY).firstOrNull()
-                        ?.let { viewModel.selectCamera(it) }
-                    showPicker = true
-                }
-            )
-        }
-
         // Live caption preview.
         if (cameraState.liveCaptions && cameraState.liveCaptionText.isNotBlank()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 240.dp, start = 24.dp, end = 24.dp)
+                    .padding(bottom = 300.dp, start = 24.dp, end = 24.dp)
                     .glass(shape = RoundedCornerShape(16.dp), alpha = 0.35f)
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
@@ -433,13 +413,13 @@ fun ViewfinderScreen(
             }
         }
 
-        // Bottom controls.
+        // ---- Bottom cluster: the NOMO-CAM-style camera strip + shutter ----
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 104.dp)
-                .padding(horizontal = 16.dp),
+                .padding(bottom = 96.dp)
+                .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Recording readout.
@@ -458,37 +438,6 @@ fun ViewfinderScreen(
                 }
             }
 
-            // Selected camera chip.
-            Box(
-                modifier = Modifier
-                    .glass(shape = RoundedCornerShape(22.dp), alpha = 0.22f)
-                    .clickable { showPicker = true }
-                    .padding(horizontal = 18.dp, vertical = 9.dp)
-            ) {
-                Text(
-                    text = preset?.name ?: "Select camera",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Photo / Video mode chips.
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ModeChip(
-                    label = "Photo",
-                    selected = cameraState.captureMode == CaptureMode.PHOTO,
-                    onClick = { viewModel.setCaptureMode(CaptureMode.PHOTO) }
-                )
-                ModeChip(
-                    label = "Video",
-                    selected = cameraState.captureMode == CaptureMode.VIDEO,
-                    onClick = { viewModel.setCaptureMode(CaptureMode.VIDEO) }
-                )
-            }
-
             // Video extras: speed + captions.
             AnimatedVisibility(
                 visible = cameraState.captureMode == CaptureMode.VIDEO,
@@ -498,12 +447,11 @@ fun ViewfinderScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp)
+                        .padding(bottom = 12.dp)
                         .glass(shape = RoundedCornerShape(24.dp), alpha = 0.16f)
                         .padding(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Speed chips + fps hint.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -528,7 +476,6 @@ fun ViewfinderScreen(
 
                     Spacer(Modifier.height(10.dp))
 
-                    // Caption field + live captions toggle.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -568,16 +515,85 @@ fun ViewfinderScreen(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            // Selected camera name (the strip highlights it too).
+            Box(
+                modifier = Modifier
+                    .glass(shape = RoundedCornerShape(50), alpha = 0.20f)
+                    .clickable { showPicker = true }
+                    .padding(horizontal = 16.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    text = buildString {
+                        append(preset?.name ?: "Select camera")
+                        val tag = preset?.tag
+                        if (!tag.isNullOrBlank()) {
+                            append("  -  ")
+                            append(tag)
+                        }
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
 
-            // Shutter row.
+            Spacer(Modifier.height(10.dp))
+
+            // Family pills: Vintage / B&W / Beauty.
+            SegmentedTabs(
+                options = CameraGroup.ordered.map { CameraGroup.label(it) },
+                selectedIndex = CameraGroup.ordered.indexOf(activeGroup).coerceAtLeast(0),
+                onSelect = { index ->
+                    val group = CameraGroup.ordered.getOrElse(index) { CameraGroup.VINTAGE }
+                    viewModel.setPickerGroup(group)
+                    if (preset?.group != group) {
+                        viewModel.filmRepository.ofGroup(group).firstOrNull()
+                            ?.let { viewModel.selectCamera(it) }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            // The prominent horizontal camera strip.
+            CameraStrip(
+                cameras = stripCameras,
+                selectedId = preset?.id,
+                onSelect = { viewModel.selectCamera(it) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            // Secondary controls: photo / video on the left, flash + timer right.
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onOpenGallery) {
-                    Icon(Icons.Filled.PhotoLibrary, contentDescription = "Gallery", tint = Color.White)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModeChip(
+                        label = "Photo",
+                        selected = cameraState.captureMode == CaptureMode.PHOTO,
+                        onClick = { viewModel.setCaptureMode(CaptureMode.PHOTO) }
+                    )
+                    ModeChip(
+                        label = "Video",
+                        selected = cameraState.captureMode == CaptureMode.VIDEO,
+                        onClick = { viewModel.setCaptureMode(CaptureMode.VIDEO) }
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { viewModel.cycleFlash() }) {
+                    Icon(
+                        imageVector = when (cameraState.flash) {
+                            FlashMode.ON -> Icons.Filled.FlashOn
+                            FlashMode.AUTO -> Icons.Filled.FlashAuto
+                            FlashMode.OFF -> Icons.Filled.FlashOff
+                        },
+                        contentDescription = "Flash",
+                        tint = if (cameraState.flash == FlashMode.OFF) Color.White else MaterialTheme.colorScheme.primary
+                    )
                 }
                 IconButton(onClick = { viewModel.cycleSelfTimer() }) {
                     Icon(
@@ -586,6 +602,21 @@ fun ViewfinderScreen(
                         tint = timerTint(cameraState.selfTimer)
                     )
                 }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // The shutter row: last shot (left), big round shutter (centre),
+            // flip camera (right).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LastShotThumbnail(
+                    photo = lastShot,
+                    onClick = onOpenGallery
+                )
 
                 ShutterButton(
                     capturing = cameraState.isCapturing || cameraState.processingVideo,
@@ -635,17 +666,6 @@ fun ViewfinderScreen(
                     }
                 )
 
-                IconButton(onClick = { viewModel.cycleFlash() }) {
-                    Icon(
-                        imageVector = when (cameraState.flash) {
-                            FlashMode.ON -> Icons.Filled.FlashOn
-                            FlashMode.AUTO -> Icons.Filled.FlashAuto
-                            FlashMode.OFF -> Icons.Filled.FlashOff
-                        },
-                        contentDescription = "Flash",
-                        tint = if (cameraState.flash == FlashMode.OFF) Color.White else MaterialTheme.colorScheme.primary
-                    )
-                }
                 IconButton(onClick = { viewModel.switchLens() }) {
                     Icon(Icons.Filled.Cameraswitch, contentDescription = "Switch camera", tint = Color.White)
                 }
@@ -663,7 +683,7 @@ fun ViewfinderScreen(
                 state = proState,
                 capabilities = proCaps,
                 onUpdate = { transform -> viewModel.updateProState(transform) },
-                modifier = Modifier.padding(bottom = 248.dp)
+                modifier = Modifier.padding(bottom = 300.dp)
             )
         }
 
