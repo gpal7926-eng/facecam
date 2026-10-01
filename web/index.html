@@ -140,6 +140,35 @@
             </div>
             <label class="live-cap"><input type="checkbox" id="live-captions"> Live captions</label>
           </div>
+          <div class="video-opts">
+            <label class="vopt">Res
+              <select id="vid-res">
+                <option value="source">Auto</option>
+                <option value="720">720p</option>
+                <option value="1080" selected>1080p</option>
+                <option value="2160">4K</option>
+              </select>
+            </label>
+            <label class="vopt">FPS
+              <select id="vid-fps">
+                <option value="24">24</option>
+                <option value="30" selected>30</option>
+                <option value="60">60</option>
+              </select>
+            </label>
+            <label class="vopt">Audio
+              <select id="vid-audio">
+                <option value="original">Original</option>
+                <option value="vintage">Vintage mic</option>
+                <option value="vhs">VHS</option>
+                <option value="cassette">Cassette</option>
+              </select>
+            </label>
+          </div>
+          <div class="video-opts">
+            <label class="live-cap"><input type="checkbox" id="vid-mirror"> Mirror (front)</label>
+            <label class="live-cap"><input type="checkbox" id="vid-bake"> Photo-consistent bake</label>
+          </div>
         </div>
 
         <div class="zoom-row" id="zoom-row">
@@ -167,6 +196,7 @@
 
         <div class="shutter-row">
           <button class="mini-thumb" id="btn-gallery-mini" title="Gallery"><span></span></button>
+          <button class="icon-btn pause-btn" id="btn-pause" title="Pause / resume" style="display:none">&#10073;&#10073;</button>
           <button class="shutter" id="btn-shutter" title="Shutter"><span></span></button>
           <button class="icon-btn flip" id="btn-switch" title="Flip camera">&#8646;</button>
         </div>

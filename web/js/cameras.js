@@ -463,6 +463,43 @@ const CAMERAS = [
     leakColors: ['#ffd9b0', '#cfe3ff'],
     frame: { style: 'thin', color: '#f4efe6' }, dateStamp: true,
     paid: false, price: 0
+  },
+
+  /* ================================================================== *
+   * VINTAGE — movie stocks (great for video)
+   * ================================================================== */
+  {
+    id: 'film_8mm', name: '8mm Film', tag: 'Home movie', group: 'vintage',
+    desc: 'Heavy grain, dust, scratches and flicker — an old home-movie reel.',
+    filter: 'sepia(0.30) saturate(0.90) contrast(1.08) brightness(1.03)',
+    tone: { lift: 0.06, gamma: 1.02, gain: 1.03, warmth: 0.09, sat: 0.92 },
+    halation: 0.60, chroma: 0.25,
+    grain: 0.75, dust: 0.60, vignette: 0.55, leak: 0.40,
+    leakColors: ['#ffd9a0', '#ff9a5c'],
+    frame: { style: 'thick', color: '#f2ead8' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'super_8', name: 'Super 8', tag: 'Home reel', group: 'vintage',
+    desc: 'Soft focus, warm leaks and a flickering exposure — classic Super 8.',
+    filter: 'sepia(0.22) saturate(1.05) contrast(0.98) brightness(1.06) blur(0.3px)',
+    tone: { lift: 0.07, gamma: 0.98, gain: 1.05, warmth: 0.07, sat: 1.02 },
+    halation: 0.85, chroma: 0.20,
+    grain: 0.55, dust: 0.45, vignette: 0.42, leak: 0.60,
+    leakColors: ['#ffcf8f', '#ff8f6b'],
+    frame: { style: 'thin', color: '#f6ecd6' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'minidv', name: 'MiniDV', tag: 'Tape camcorder', group: 'vintage',
+    desc: 'Early digital camcorder: noisy sensor, crushed colour, sharpened tape look.',
+    filter: 'contrast(1.12) saturate(1.08) hue-rotate(4deg) brightness(1.02)',
+    tone: { lift: -0.01, gamma: 1.08, gain: 1.02, warmth: 0.03, sat: 1.10 },
+    halation: 0.35, chroma: 0.50,
+    grain: 0.42, dust: 0.18, vignette: 0.36, leak: 0.18,
+    leakColors: ['#ffd0f0', '#cfe0ff'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
   }
 ];
 

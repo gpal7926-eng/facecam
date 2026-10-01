@@ -119,6 +119,8 @@
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.prototype.slice.call(document.querySelectorAll(s));
+  const vidVal = (sel, def) => { const el = $(sel); return el ? el.value : def; };
+  const vidChk = (sel) => { const el = $(sel); return !!(el && el.checked); };
   const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
   const groupOf = (c) => (c && c.group) || 'vintage';
 
@@ -273,8 +275,9 @@
     ['#video', '#demo-canvas'].forEach(sel => {
       const el = $(sel);
       if (!el) return;
+      const mx = vidChk('#vid-mirror') ? -1 : 1;
       el.style.filter = cam.filter + expF;
-      el.style.transform = 'scale(' + z + ')';
+      el.style.transform = 'scale(' + (mx * z) + ', ' + z + ')';
     });
     const vintage = groupOf(cam) !== 'beauty';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
@@ -455,6 +458,8 @@
 
     $('#btn-shutter').classList.add('rec');
     $('#rec-badge').classList.add('show');
+    const pb = $('#btn-pause');
+    if (pb) { pb.style.display = 'inline-flex'; pb.classList.remove('on'); }
     $('#rec-time').textContent = '0:00';
     state.recTimer = setInterval(() => {
       $('#rec-time').textContent = fmtTime(Video.elapsed());
@@ -467,6 +472,8 @@
     clearInterval(state.recTimer); state.recTimer = null;
     $('#btn-shutter').classList.remove('rec');
     $('#rec-badge').classList.remove('show');
+    const pb = $('#btn-pause');
+    if (pb) { pb.style.display = 'none'; pb.classList.remove('on'); }
     if (Video.setLiveCaptions) Video.setLiveCaptions(false);
     const live = $('#live-captions'); if (live) live.checked = false;
 
@@ -474,11 +481,16 @@
     const blob = await Video.stop();
     if (!blob || !blob.size) { toast('Recording khaali rahi'); return; }
 
-    let finalBlob = blob, slow = 0;
+    let finalBlob = blob, slow = 0, baked = false;
     if (state.speed !== 1) {
       toast('Slow motion bana rahe hain...');
       try { finalBlob = await Video.bakeSlowMotion(blob, state.speed); slow = state.speed; }
       catch (e) { finalBlob = blob; slow = 0; toast('Slow motion fail — normal speed rakha'); }
+    }
+    if (vidChk('#vid-bake')) {
+      toast('Photo-consistent bake bana rahe hain...');
+      try { finalBlob = await Video.bakeLook(finalBlob, cam, store.settings()); baked = true; }
+      catch (e) { toast('Bake fail — live look rakha'); }
     }
 
     state.last = {
@@ -489,6 +501,7 @@
       camName: cam.name,
       caption: Video.getCaption(),
       slow: slow,
+      baked: baked,
       size: finalBlob.size
     };
     openResult();
@@ -1043,6 +1056,23 @@
     });
     $('#edit-save').addEventListener('click', saveEdit);
 
+    // video: pause / resume + options
+    $('#btn-pause').addEventListener('click', () => {
+      if (!Video.isRecording()) return;
+      if (Video.isPaused()) {
+        Video.resume(); $('#btn-pause').classList.remove('on'); toast('Recording resumed');
+      } else {
+        Video.pause(); $('#btn-pause').classList.add('on'); toast('Recording paused');
+      }
+    });
+    $('#vid-mirror').addEventListener('change', applyLiveLook);
+    $('#vid-res').addEventListener('change', () => {
+      const v = $('#vid-res').value;
+      toast(v === 'source' ? 'Video: auto resolution' : 'Video: ' + (v === '2160' ? '4K' : v + 'p'));
+    });
+    $('#vid-fps').addEventListener('change', () => toast('Video: ' + $('#vid-fps').value + ' fps'));
+    $('#vid-audio').addEventListener('change', () => toast('Audio: ' + $('#vid-audio').selectedOptions[0].textContent));
+
     // new settings controls
     $('#set-stamp-style').addEventListener('change', e => { const s = store.settings(); s.stampStyle = e.target.value; store.saveSettings(s); });
     $('#set-date-format').addEventListener('change', e => { const s = store.settings(); s.dateFormat = e.target.value; store.saveSettings(s); });
@@ -1148,7 +1178,11 @@
       getSource: () => (state.demo ? state.demoSource : $('#video')),
       getPreset: () => cameraById(state.cameraId),
       getSettings: () => store.settings(),
-      getIntensity: () => (state.intensity == null ? 1 : state.intensity)
+      getIntensity: () => (state.intensity == null ? 1 : state.intensity),
+      getMirror: () => vidChk('#vid-mirror'),
+      getRes: () => vidVal('#vid-res', 'source'),
+      getFps: () => parseInt(vidVal('#vid-fps', '30'), 10) || 30,
+      getAudioStyle: () => vidVal('#vid-audio', 'original')
     });
 
     applyLiveLook();

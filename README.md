@@ -24,14 +24,15 @@ This repository contains **two complete implementations** of the same app:
 
 ---
 
-## Cameras — 43 looks in three families
+## Cameras — 46 looks in three families
 
-**Vintage — 28 looks.** The decades: **50s Kodachrome, 60s Ektachrome, 70s Faded, 80s Punch,
+**Vintage — 31 looks.** The decades: **50s Kodachrome, 60s Ektachrome, 70s Faded, 80s Punch,
 90s Disposable**. The film simulations: FaceCam 135 B / M / P, TOY F / K, ROMA, FR2,
-2007, EATS, INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. Plus a set of character
-cameras: **Flash Camera, Night Film, Cinematic Film, Light Leak Film, Dreamy Film, Old
-Digital Camera, VHS / Retro, Kodak Warm, Cold Blue Film and Faded Film**. Each has its own
-colour curve, grain, light-leak behaviour, vignette and frame.
+2007, EATS, INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. The character cameras:
+**Flash Camera, Night Film, Cinematic Film, Light Leak Film, Dreamy Film, Old Digital
+Camera, VHS / Retro, Kodak Warm, Cold Blue Film and Faded Film**. And three movie stocks
+that shine in video: **8mm Film, Super 8 and MiniDV**. Each has its own colour curve, grain,
+light-leak behaviour, vignette and frame.
 
 **Black & White — 5 looks.** Classic silver-grey, high-contrast deep blacks, a warm
 sepia tone, a cool blue-toned mono and a faded low-contrast mono. These genuinely
@@ -64,9 +65,16 @@ leaks, no vignette, no frame — a clean photo.
 - **Look intensity** — one slider scales the whole look (grain, leak, vignette, colour,
   smoothing) from subtle to full-on, for both photos and video.
 - **Photo and Video modes** — flip between a still camera and a video camera with one chip.
-- **Video recording with the look baked in** — the vintage film or beauty look (colour curve,
-  grain, vignette, frame) and your caption are rendered into every recorded frame, so the
-  saved clip already has the look. Records the microphone too when permission is granted.
+- **Video recording with the look baked in** — the same camera presets run live on video,
+  with the effects *animated* frame by frame: moving grain, drifting dust, random scratches,
+  flicker, animated light leaks, film burn, frame jitter, focus breathing, VHS scanlines and
+  tracking, chromatic aberration, digital glitches and a burned-in retro timestamp. Records
+  the microphone, and bakes your caption/subtitle onto every frame.
+- **Video capture controls** — resolution (auto / 720p / 1080p / 4K) and frame rate
+  (24 / 30 / 60), a front-camera mirror, pause / resume mid-recording, and optional
+  vintage-mic / VHS / cassette audio treatment (original audio stays clean by default).
+- **Photo-consistent bake** — optionally re-render a clip through the exact photo pipeline so
+  a video matches the still photo of the same camera.
 - **Slow motion** — record, then bake a 0.5x or 0.25x slow-motion version, or change playback
   speed while viewing. The slow-mo export is a real re-timed file, not just a preview.
 - **Subtitles** — type a caption line and it is burned onto the video; optional live

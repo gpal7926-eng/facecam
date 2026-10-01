@@ -3,7 +3,7 @@
 FaceCam is a **100% offline, completely free** camera app (Kotlin + Jetpack
 Compose). It ships **three** camera families plus a full video mode:
 
-- **Vintage** - 28 film-camera simulations with procedural grain, light leaks,
+- **Vintage** - 31 film-camera simulations with procedural grain, light leaks,
   vignette, dust, film frames, date stamps and the FaceCam branding band,
   including a decade series (50s / 60s / 70s / 80s / 90s) and a set of character
   cameras (Flash, Night, Cinematic, Light Leak, Dreamy, Old Digital, VHS,
@@ -154,14 +154,14 @@ All cameras live as JSON in `app/src/main/assets/cameras/`. Each file has an
 `"beauty"`) and a 20-float `colorMatrix`. The rest of the fields depend on the
 family:
 
-### Vintage cameras (`"group": "vintage"`) - 28 presets
+### Vintage cameras (`"group": "vintage"`) - 31 presets
 
 `nomo_135_b`, `nomo_135_m`, `nomo_135_p`, `toy_f`, `toy_k`, `roma`, `fr2`,
 `film_2007`, `eats`, `ins_2`, `swirly_2`, `range_67`, `wide_17`, the decade
 series `vintage_50s`, `vintage_60s`, `vintage_70s`, `vintage_80s` and
-`vintage_90s`, and the character cameras `flash_cam`, `night_film`,
-`cinematic`, `light_leak`, `dreamy`, `old_digital`, `vhs`, `kodak_warm`,
-`cold_blue`, `faded`.
+`vintage_90s`, the character cameras `flash_cam`, `night_film`, `cinematic`,
+`light_leak`, `dreamy`, `old_digital`, `vhs`, `kodak_warm`, `cold_blue`,
+`faded`, and the movie stocks `film_8mm`, `super_8`, `minidv`.
 
 ### Black & white cameras (`"group": "bw"`) - 5 presets
 
@@ -578,7 +578,7 @@ an APK:
 ## 9. Notes and assumptions
 
 - **Free by design.** There is no billing, no ads, no paywall and no PRO
-  membership. All 43 cameras (28 vintage + 5 B&W + 10 beauty) are unlocked for
+  membership. All 46 cameras (31 vintage + 5 B&W + 10 beauty) are unlocked for
   everyone.
 - **Intro by design.** The 3D intro (`ui/screens/IntroScreen.kt`) is pure Compose
   Canvas - no external 3D library, no assets and no network - and can be skipped
