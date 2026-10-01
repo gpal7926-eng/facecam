@@ -650,7 +650,11 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 
       <div id="cam-fallback" class="cam-fallback">
         <p id="fallback-text">Camera is device par available nahi hai.</p>
-        <p class="fine">Demo scene se poora pipeline test karein, ya gallery se photo import karein.</p>
+        <a id="fallback-live" class="btn primary" style="display:none"
+           href="https://gpal7926-eng.github.io/facecam/FaceCam-preview.html" target="_blank" rel="noopener">
+          Live version kholiye (camera yahan chalta hai)
+        </a>
+        <p class="fine" id="fallback-fine">Demo scene se poora pipeline test karein, ya gallery se photo import karein.</p>
         <button class="btn primary" id="fallback-demo">Demo scene try karein</button>
         <button class="btn" id="fallback-pick">Photo import karein</button>
       </div>
@@ -1982,6 +1986,18 @@ const Pro = (() => {
       showFallback('Is browser mein camera support nahi hai.');
       return;
     }
+    // A file opened straight from disk (file://) is NOT a secure context, so the
+    // browser blocks the camera completely. No app can work around this — the
+    // page has to be served over https:// or localhost. Say so plainly.
+    if (location.protocol === 'file:' || window.isSecureContext === false) {
+      showFallback(
+        'Camera isliye nahi chala kyunki aap ye file seedha kholiye hain (file://).',
+        true,
+        'Browsers file:// par camera block kar dete hain \u2014 ye koi app bypass nahi kar sakta. ' +
+        'Live version https par kholein, ya folder ko localhost se serve karein.'
+      );
+      return;
+    }
     try {
       const stream = await withTimeout(
         navigator.mediaDevices.getUserMedia({
@@ -2010,10 +2026,13 @@ const Pro = (() => {
     }
   }
 
-  function showFallback(reason) {
+  function showFallback(reason, showLive, fine) {
     $('#fallback-text').textContent = reason;
+    if (fine) $('#fallback-fine').textContent = fine;
     $('#cam-fallback').classList.add('show');
     $('#video').style.display = 'none';
+    const live = $('#fallback-live');
+    if (live) live.style.display = showLive ? 'block' : 'none';
   }
 
   function stopCamera() {

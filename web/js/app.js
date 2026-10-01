@@ -223,6 +223,18 @@
       showFallback('Is browser mein camera support nahi hai.');
       return;
     }
+    // A file opened straight from disk (file://) is NOT a secure context, so the
+    // browser blocks the camera completely. No app can work around this — the
+    // page has to be served over https:// or localhost. Say so plainly.
+    if (location.protocol === 'file:' || window.isSecureContext === false) {
+      showFallback(
+        'Camera isliye nahi chala kyunki aap ye file seedha kholiye hain (file://).',
+        true,
+        'Browsers file:// par camera block kar dete hain \u2014 ye koi app bypass nahi kar sakta. ' +
+        'Live version https par kholein, ya folder ko localhost se serve karein.'
+      );
+      return;
+    }
     try {
       const stream = await withTimeout(
         navigator.mediaDevices.getUserMedia({
@@ -251,10 +263,13 @@
     }
   }
 
-  function showFallback(reason) {
+  function showFallback(reason, showLive, fine) {
     $('#fallback-text').textContent = reason;
+    if (fine) $('#fallback-fine').textContent = fine;
     $('#cam-fallback').classList.add('show');
     $('#video').style.display = 'none';
+    const live = $('#fallback-live');
+    if (live) live.style.display = showLive ? 'block' : 'none';
   }
 
   function stopCamera() {
