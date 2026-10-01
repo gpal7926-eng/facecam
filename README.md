@@ -167,6 +167,26 @@ Nothing leaves the device.
 
 ---
 
+## App icon
+
+The launcher icon is the FaceCam lens mark: a gradient-rounded tile with a camera lens, a
+face-detection frame and a recording dot.
+
+| File | What it is |
+|---|---|
+| [`docs/icon-512.png`](docs/icon-512.png) | 512×512 master (Play Store / store listing) |
+| `android/app/src/main/res/mipmap-*/ic_launcher.png` | legacy square icon, all five densities |
+| `android/app/src/main/res/mipmap-*/ic_launcher_round.png` | legacy round icon |
+| `android/app/src/main/res/mipmap-*/ic_launcher_foreground.png` | adaptive foreground (transparent, safe-zone centred) |
+| `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | adaptive icon (gradient background + foreground) |
+| `android/app/src/main/res/drawable/ic_launcher_background.xml` | gradient background |
+| `web/icon-256.png` | web favicon / apple-touch-icon / onboarding logo |
+
+Android can't use SVG in `res/`, so the master artwork is rasterised into PNGs at every
+density. Regenerate them with `node tools/rasterize_icon.js` (needs a local Chromium).
+
+---
+
 ## Open source
 
 Built on:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bundle web/ (index.html + css/styles.css + js/*.js) into the single-file
 FaceCam-preview.html. Pure stdlib, no dependencies."""
+import base64
 import os
 import re
 
@@ -42,6 +43,14 @@ def main():
         code = code.replace("</script", "<\\/script")
         tag = '<script src="js/%s"></script>' % name
         html = html.replace(tag, "<script>\n" + code + "\n</script>")
+
+    # inline the app icon so the single file stays self-contained
+    icon_path = os.path.join(WEB, "icon-256.png")
+    if os.path.exists(icon_path):
+        with open(icon_path, "rb") as f:
+            uri = "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
+        html = html.replace('href="icon-256.png"', 'href="%s"' % uri)
+        html = html.replace('src="icon-256.png"', 'src="%s"' % uri)
 
     out = HEADER + html
     with open(OUT, "w", encoding="utf-8") as f:

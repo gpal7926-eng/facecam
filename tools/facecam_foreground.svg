@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#07152F"/>
+    <stop offset="0.52" stop-color="#0A1025"/>
+    <stop offset="1" stop-color="#160A32"/>
+  </linearGradient>
+  <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#00BFFF"/>
+    <stop offset="0.48" stop-color="#3D6BFF"/>
+    <stop offset="1" stop-color="#FF16D9"/>
+  </linearGradient>
+  <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#00C8FF"/>
+    <stop offset="0.45" stop-color="#164CFF"/>
+    <stop offset="1" stop-color="#B51DFF"/>
+  </linearGradient>
+  <linearGradient id="person" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#65E8FF"/>
+    <stop offset="0.55" stop-color="#8D7BFF"/>
+    <stop offset="1" stop-color="#FF75D8"/>
+  </linearGradient>
+  <linearGradient id="camText" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#00C8FF"/>
+    <stop offset="0.55" stop-color="#6570FF"/>
+    <stop offset="1" stop-color="#FF32D1"/>
+  </linearGradient>
+  <radialGradient id="glass" cx="30%" cy="20%" r="80%">
+    <stop offset="0" stop-color="#2A79FF" stop-opacity=".75"/>
+    <stop offset=".55" stop-color="#1428B8" stop-opacity=".45"/>
+    <stop offset="1" stop-color="#7A13D8" stop-opacity=".5"/>
+  </radialGradient>
+  <filter id="glowBlue" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="18" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="10" stdDeviation="14" flood-opacity=".45"/>
+  </filter>
+  <filter id="redGlow" x="-100%" y="-100%" width="300%" height="300%">
+    <feGaussianBlur stdDeviation="10" result="b"/>
+    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>
+
+<!-- Background -->
+<rect x="56" y="56" width="912" height="912" rx="185" fill="url(#bg)" stroke="url(#edge)" stroke-width="12" filter="url(#soft)"/>
+
+<!-- subtle rim glow -->
+<rect x="64" y="64" width="896" height="896" rx="178" fill="none" stroke="url(#edge)" stroke-width="28" opacity=".22" filter="url(#glowBlue)"/>
+
+<!-- recording dot -->
+<circle cx="758" cy="190" r="42" fill="#FF2029" opacity=".35" filter="url(#redGlow)"/>
+<circle cx="758" cy="190" r="34" fill="#FF252B" stroke="#FF8585" stroke-width="5"/>
+<circle cx="747" cy="179" r="10" fill="#FFF" opacity=".75"/>
+
+<!-- face detection brackets -->
+<g fill="none" stroke="#F8FBFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)">
+ <path d="M230 330V250H310"/>
+ <path d="M714 250H794V330"/>
+ <path d="M230 700V780H310"/>
+ <path d="M714 780H794V700"/>
+</g>
+
+<!-- lens outer -->
+<circle cx="512" cy="515" r="235" fill="#050A17" stroke="#26324C" stroke-width="18" filter="url(#soft)"/>
+<circle cx="512" cy="515" r="205" fill="url(#glass)" stroke="#6A9BFF" stroke-width="7"/>
+<circle cx="512" cy="515" r="181" fill="none" stroke="#151B46" stroke-width="22"/>
+<circle cx="512" cy="515" r="164" fill="url(#lens)" stroke="#0B0F31" stroke-width="8"/>
+
+<!-- lens highlights -->
+<path d="M407 419 C438 375 478 353 520 348" fill="none" stroke="#C9F8FF" stroke-width="30" stroke-linecap="round" opacity=".9"/>
+<path d="M641 562 C657 530 665 494 661 461" fill="none" stroke="#F64DFF" stroke-width="22" stroke-linecap="round" opacity=".7"/>
+
+<!-- face silhouette -->
+<path d="M512 399
+ C466 399 437 433 437 481
+ C437 520 451 545 470 562
+ L470 600
+ C432 614 397 634 376 674
+ C411 703 460 720 512 720
+ C564 720 613 703 648 674
+ C627 634 592 614 554 600
+ L554 562
+ C573 545 587 520 587 481
+ C587 433 558 399 512 399 Z"
+ fill="url(#person)" opacity=".96"/>
+
+<!-- subtle face edge -->
+<path d="M470 600 C465 575 466 559 470 548" fill="none" stroke="#BDEFFF" stroke-width="5" opacity=".35"/>
+
+<!-- bottom label -->
+<g font-family="Arial, Helvetica, sans-serif" font-weight="800" letter-spacing="2">
+ <text x="512" y="875" text-anchor="middle" font-size="86" fill="#F8FAFF">FACE <tspan fill="url(#camText)">CAM</tspan></text>
+</g>
+</svg>

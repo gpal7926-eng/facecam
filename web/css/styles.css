@@ -594,3 +594,9 @@ body[data-family="beauty"]  { --grad-active: var(--grad-beauty); }
 }
 .pause-btn { width: 46px; height: 46px; font-size: 13px; }
 .pause-btn.on { background: var(--grad); color: #fff; border-color: transparent; }
+
+/* ---------- app logo on onboarding ---------- */
+.onb-logo {
+  display: block; width: 96px; height: 96px; border-radius: 24px;
+  margin: 0 auto 16px; box-shadow: 0 14px 36px rgba(0,0,0,.55);
+}
