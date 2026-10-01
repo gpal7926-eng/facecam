@@ -8,7 +8,14 @@
         android:name="android.hardware.camera.any"
         android:required="true" />
 
-    <!-- Saving photos to the shared media store -->
+    <!-- Video recording with audio, and on-device live captions
+         (SpeechRecognizer). Both use the microphone; no network is used. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
+    <!-- Saving photos and videos to the shared media store -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"
@@ -18,9 +25,20 @@
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <!-- Runtime notification permission for the "developing" progress notice -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- On API 30+ an app must declare the services it queries. Live captions use
+         the on-device SpeechRecognizer; this makes the recognition service visible
+         to us without any network permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".FaceCamApp"

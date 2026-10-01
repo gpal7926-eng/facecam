@@ -62,4 +62,28 @@
     <string name="manual_readout_shutter">SHUTTER</string>
     <string name="manual_readout_wb">WB</string>
     <string name="manual_readout_focus">FOCUS</string>
+
+    <!-- Video mode -->
+    <string name="mode_photo">Photo</string>
+    <string name="mode_video">Video</string>
+    <string name="mode_vintage">Vintage</string>
+    <string name="mode_beauty">Beauty</string>
+    <string name="video_speed">Speed</string>
+    <string name="video_high_fps_available">High-fps capture available</string>
+    <string name="video_high_fps_unavailable">High-fps capture not supported on this device</string>
+    <string name="video_recording">Recording</string>
+    <string name="video_processing">Finishing your clip\u2026</string>
+
+    <!-- Subtitles / captions -->
+    <string name="caption_hint">Add a caption\u2026</string>
+    <string name="caption_live">CC Live</string>
+    <string name="caption_live_unavailable">On-device speech recognition unavailable</string>
+
+    <!-- Framing guide -->
+    <string name="viewfinder_face_guide">Centre on face guide</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_camera">Camera</string>
+    <string name="tab_gallery">Gallery</string>
+    <string name="tab_modes">Modes</string>
 </resources>

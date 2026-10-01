@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.hardware.camera2.CameraCharacteristics
 import android.util.Log
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
@@ -14,6 +16,8 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.Recorder
+import androidx.camera.video.VideoCapture
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -57,11 +61,12 @@ class CameraController(private val context: Context) {
         analysis.setAnalyzer(ContextCompat.getMainExecutor(context), effective)
     }
 
-    /** Bind the preview to the given [previewView] and prepare the capture use case. */
+    /** Bind the preview to the given [previewView] and prepare the capture use cases. */
     fun bind(
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView,
         lensFacing: LensFacing,
+        videoCapture: VideoCapture<Recorder>? = null,
         onReady: (Boolean) -> Unit
     ) {
         this.lensFacing = lensFacing
@@ -93,13 +98,24 @@ class CameraController(private val context: Context) {
                     .build()
 
                 provider.unbindAll()
-                val bound = provider.bindToLifecycle(
-                    lifecycleOwner,
-                    selector,
-                    preview,
-                    imageCapture,
-                    imageAnalysis
-                )
+                val bound = if (videoCapture != null) {
+                    provider.bindToLifecycle(
+                        lifecycleOwner,
+                        selector,
+                        preview,
+                        imageCapture,
+                        imageAnalysis,
+                        videoCapture
+                    )
+                } else {
+                    provider.bindToLifecycle(
+                        lifecycleOwner,
+                        selector,
+                        preview,
+                        imageCapture,
+                        imageAnalysis
+                    )
+                }
                 camera = bound
                 cameraInfo = bound.cameraInfo
                 onReady(true)
@@ -108,6 +124,25 @@ class CameraController(private val context: Context) {
                 onReady(false)
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    /**
+     * Highest target fps the active camera advertises (from CameraCharacteristics),
+     * or 30 when it cannot be read. Used to tell the user whether high-fps capture
+     * (for slow motion) is available on this device.
+     */
+    fun highestSupportedFps(): Int {
+        val info = cameraInfo ?: return 30
+        return try {
+            val c2 = Camera2CameraInfo.from(info)
+            val ranges = c2.getCameraCharacteristic(
+                CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES
+            )
+            ranges?.maxOfOrNull { it.upper } ?: 30
+        } catch (t: Throwable) {
+            Log.w(TAG, "Could not read fps ranges", t)
+            30
+        }
     }
 
     fun setFlash(mode: FlashMode) {

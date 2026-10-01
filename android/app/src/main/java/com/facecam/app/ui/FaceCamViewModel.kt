@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.facecam.app.FaceCamApp
 import com.facecam.app.camera.CameraUiState
+import com.facecam.app.camera.CaptureMode
 import com.facecam.app.camera.FlashMode
 import com.facecam.app.camera.LensFacing
 import com.facecam.app.camera.SelfTimer
@@ -23,15 +24,21 @@ import com.facecam.app.gallery.GalleryPhoto
 import com.facecam.app.gallery.GalleryRepository
 import com.facecam.app.gallery.MediaStoreSaver
 import com.facecam.app.gallery.ShareHelper
+import com.facecam.app.ml.FaceMaskProvider
+import com.facecam.app.video.SlowMotionExporter
+import com.facecam.app.video.SubtitleOverlay
+import com.facecam.app.video.VideoEffectProcessor
+import com.facecam.app.video.VideoSpeed
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Calendar
 
 /**
  * Single source of truth for FaceCam's UI state. Owns the selected camera, the
- * viewfinder controls and the in-app gallery.
+ * viewfinder controls (photo + video), the subtitle state and the in-app gallery.
  *
  * FaceCam is completely free and offline: there is no purchase, ad or
  * entitlement state here at all.
@@ -44,6 +51,9 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
     val settingsStore = faceCamApp.settingsStore
     val galleryRepository = GalleryRepository(app)
     val developingController = DevelopingController()
+
+    /** Subtitle state for the video recorder (typed caption, cues, SRT). */
+    val subtitleOverlay = SubtitleOverlay()
 
     private val _cameraState = MutableStateFlow(CameraUiState())
     val cameraState: StateFlow<CameraUiState> = _cameraState.asStateFlow()
@@ -63,6 +73,10 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+
+    /** Live face-bounds hint (0..1 preview space) for the "centre on face" guide. */
+    private val _faceHint = MutableStateFlow<android.graphics.RectF?>(null)
+    val faceHint: StateFlow<android.graphics.RectF?> = _faceHint.asStateFlow()
 
     // ---- Manual camera mode (opt-in; simple mode is untouched) ----
     private val _proState = MutableStateFlow(ProState())
@@ -141,14 +155,88 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------
-    // Capture & develop
+    // Photo / video mode
+    // ------------------------------------------------------------------
+    fun setCaptureMode(mode: CaptureMode) {
+        _cameraState.value = _cameraState.value.copy(captureMode = mode)
+    }
+
+    fun setVideoSpeed(speed: VideoSpeed) {
+        _cameraState.value = _cameraState.value.copy(videoSpeed = speed)
+    }
+
+    fun setMaxFps(fps: Int) {
+        _cameraState.value = _cameraState.value.copy(maxFps = fps)
+    }
+
+    fun onRecordingStarted() {
+        _cameraState.value = _cameraState.value.copy(isRecording = true, recordingElapsedMs = 0L)
+    }
+
+    fun onRecordingElapsed(ms: Long) {
+        _cameraState.value = _cameraState.value.copy(recordingElapsedMs = ms)
+    }
+
+    fun onRecordingStopped() {
+        _cameraState.value = _cameraState.value.copy(isRecording = false, recordingElapsedMs = 0L)
+    }
+
+    // ------------------------------------------------------------------
+    // Subtitles
+    // ------------------------------------------------------------------
+    fun setTypedCaption(text: String) {
+        subtitleOverlay.setTypedCaption(text)
+        _cameraState.value = _cameraState.value.copy(typedCaption = text)
+    }
+
+    fun toggleLiveCaptions() {
+        setLiveCaptions(!_cameraState.value.liveCaptions)
+    }
+
+    /** Turn on-device live captions on or off. */
+    fun setLiveCaptions(enabled: Boolean) {
+        _cameraState.value = _cameraState.value.copy(liveCaptions = enabled, liveCaptionText = "")
+    }
+
+    /** Post a short user-facing message. */
+    fun notify(text: String) {
+        _message.value = text
+    }
+
+    /** Feed a live caption line (from the on-device SpeechRecognizer). */
+    fun onLiveCaption(text: String, isFinal: Boolean) {
+        val at = _cameraState.value.recordingElapsedMs
+        if (isFinal) {
+            subtitleOverlay.addLiveCaption(text, at)
+            subtitleOverlay.commitLiveCaption(at)
+        } else {
+            subtitleOverlay.addLiveCaption(text, at)
+        }
+        _cameraState.value = _cameraState.value.copy(liveCaptionText = text.trim())
+    }
+
+    // ------------------------------------------------------------------
+    // On-device ML framing guide
+    // ------------------------------------------------------------------
+    fun setFaceGuide(enabled: Boolean) {
+        _cameraState.value = _cameraState.value.copy(faceGuide = enabled)
+        if (!enabled) _faceHint.value = null
+    }
+
+    fun onFaceHint(bounds: android.graphics.RectF?) {
+        _faceHint.value = bounds
+    }
+
+    // ------------------------------------------------------------------
+    // Capture & develop (stills)
     // ------------------------------------------------------------------
     /**
      * Apply the appropriate pipeline to a captured still and persist it to the
      * in-app gallery:
      *
      *  - Beauty cameras run [BeautyEffects] (clean, no grain / leak / vignette /
-     *    frame / date stamp / branding).
+     *    frame / date stamp / branding). When on-device face detection finds a
+     *    face, the skin smoothing is steered by a feathered face mask.
      *  - Vintage cameras run [AnalogEffects] + the shared frame, date stamp and
      *    [com.facecam.app.film.BrandingRenderer] band.
      *
@@ -167,10 +255,13 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val developed: Bitmap = if (preset.isBeauty) {
-                BeautyEffects.develop(
+                val faceMask = runCatching { FaceMaskProvider.detect(source) }.getOrNull()
+                val out = BeautyEffects.develop(
                     source = source,
-                    options = BeautyEffects.Options(preset = preset)
+                    options = BeautyEffects.Options(preset = preset, faceMask = faceMask?.mask)
                 )
+                faceMask?.mask?.recycle()
+                out
             } else {
                 val dateStampOn = settingsStore.dateStamp && preset.dateStamp
                 val borderOn = settingsStore.border
@@ -207,6 +298,86 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
             refreshGallery()
 
             settingsStore.saveCount = settingsStore.saveCount + 1
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Video finishing: effects -> slow motion -> gallery + MediaStore
+    // ------------------------------------------------------------------
+    /**
+     * Post-process a recorded clip: apply the camera look frame by frame, burn
+     * the typed caption, re-time for slow motion, then save to the in-app gallery
+     * and to MediaStore. A sidecar `.srt` is written when there are cues.
+     */
+    fun finishVideo(source: File, cameraName: String) {
+        val preset = _selectedCamera.value ?: return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            _cameraState.value = _cameraState.value.copy(processingVideo = true, videoProgress = 0f)
+            val cache = app.cacheDir
+            val stamp = System.currentTimeMillis()
+
+            val faceMask = if (preset.isBeauty) {
+                runCatching { FaceMaskProvider.detectFromVideo(source) }.getOrNull()
+            } else {
+                null
+            }
+            val caption = subtitleOverlay.typedCaption.takeIf { it.isNotBlank() }
+
+            val effFile = File(cache, "facecam_effect_$stamp.mp4")
+            val effResult = VideoEffectProcessor.process(
+                input = source,
+                output = effFile,
+                preset = preset,
+                faceMask = faceMask?.mask,
+                caption = caption,
+                border = settingsStore.border,
+                dateStamp = settingsStore.dateStamp && preset.dateStamp,
+                branding = settingsStore.branding,
+                onProgress = { p ->
+                    _cameraState.value = _cameraState.value.copy(videoProgress = p * 0.7f)
+                }
+            )
+            faceMask?.mask?.recycle()
+
+            val slowFile = File(cache, "facecam_slow_$stamp.mp4")
+            val slowResult = SlowMotionExporter.export(
+                input = effResult.file,
+                output = slowFile,
+                speed = _cameraState.value.videoSpeed,
+                onProgress = { p ->
+                    _cameraState.value = _cameraState.value.copy(videoProgress = 0.7f + p * 0.3f)
+                }
+            )
+
+            val photo = galleryRepository.saveVideo(slowResult.file, preset.id, cameraName)
+            if (photo != null) {
+                MediaStoreSaver.saveVideo(app, photo)
+                if (subtitleOverlay.allCues().isNotEmpty()) {
+                    val srt = File(photo.file.parentFile, photo.file.nameWithoutExtension + ".srt")
+                    subtitleOverlay.writeSrt(srt)
+                }
+                _lastDeveloped.value = photo
+                _message.value = buildString {
+                    append(slowResult.note)
+                    append(" - ")
+                    append(if (effResult.lookBaked) "look applied" else effResult.note)
+                }
+                settingsStore.saveCount = settingsStore.saveCount + 1
+            } else {
+                _message.value = "Could not save video"
+            }
+
+            runCatching { effFile.delete() }
+            runCatching { slowFile.delete() }
+            runCatching { source.delete() }
+            subtitleOverlay.clear()
+            _cameraState.value = _cameraState.value.copy(
+                processingVideo = false,
+                videoProgress = 0f,
+                typedCaption = ""
+            )
+            refreshGallery()
         }
     }
 

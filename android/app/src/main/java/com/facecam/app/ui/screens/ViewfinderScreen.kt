@@ -1,5 +1,9 @@
 package com.facecam.app.ui.screens
 
+import android.Manifest
+import android.graphics.RectF
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -13,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,9 +29,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.FaceRetouchingNatural
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
@@ -35,6 +42,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -55,12 +63,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.facecam.app.camera.CameraController
+import com.facecam.app.camera.CaptureMode
 import com.facecam.app.camera.FlashMode
 import com.facecam.app.camera.LensFacing
 import com.facecam.app.camera.SelfTimer
@@ -71,13 +83,28 @@ import com.facecam.app.camera.pro.ProCapabilities
 import com.facecam.app.camera.pro.ProControlsPanel
 import com.facecam.app.camera.pro.ProFrameProcessor
 import com.facecam.app.camera.pro.ProHudOverlay
+import com.facecam.app.film.CameraGroup
+import com.facecam.app.ml.FaceGuideAnalyzer
 import com.facecam.app.ui.FaceCamViewModel
+import com.facecam.app.ui.components.FaceCamBottomBar
+import com.facecam.app.ui.components.GlassPill
+import com.facecam.app.ui.components.HomeTab
+import com.facecam.app.ui.components.ModeChip
+import com.facecam.app.ui.components.RecBadge
+import com.facecam.app.ui.components.glass
+import com.facecam.app.ui.theme.FaceCamGradient
+import com.facecam.app.ui.theme.Violet
+import com.facecam.app.video.LiveCaptionController
+import com.facecam.app.video.VideoRecorder
+import com.facecam.app.video.VideoSpeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * The live viewfinder. Shows a CameraX preview with a lightweight tint + vignette
- * overlay, the full set of capture controls, and an optional manual shooting HUD.
+ * overlay, the full set of capture controls (photo + video), the on-device
+ * framing guide and an optional manual shooting HUD.
  */
 @Composable
 fun ViewfinderScreen(
@@ -85,7 +112,8 @@ fun ViewfinderScreen(
     onOpenCameras: () -> Unit,
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenDoubleExposure: () -> Unit
+    onOpenDoubleExposure: () -> Unit,
+    onNavigate: (HomeTab) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -93,9 +121,16 @@ fun ViewfinderScreen(
     val cameraState by viewModel.cameraState.collectAsState()
     val preset by viewModel.selectedCamera.collectAsState()
     val message by viewModel.message.collectAsState()
+    val faceHint by viewModel.faceHint.collectAsState()
 
     var showPicker by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
+    var captionDraft by remember { mutableStateOf("") }
+
+    // Keep the caption field in sync with the ViewModel.
+    LaunchedEffect(cameraState.typedCaption) {
+        if (captionDraft != cameraState.typedCaption) captionDraft = cameraState.typedCaption
+    }
 
     // ---- Manual mode wiring (opt-in) ----
     val proState by viewModel.proState.collectAsState()
@@ -109,21 +144,35 @@ fun ViewfinderScreen(
 
     val cameraController = remember { CameraController(context) }
     val previewView = remember { PreviewView(context) }
+    val videoRecorder = remember { VideoRecorder(context) }
+    val faceGuideAnalyzer = remember { FaceGuideAnalyzer() }
+    val liveCaptions = remember { LiveCaptionController(context) }
+
+    // Runtime microphone permission (audio in video + on-device live captions).
+    val audioPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) viewModel.notify("Microphone permission is needed for audio and live captions")
+    }
 
     LaunchedEffect(cameraState.lensFacing) {
         cameraController.bind(
             lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current,
             previewView = previewView,
             lensFacing = cameraState.lensFacing,
+            videoCapture = videoRecorder.videoCapture,
             onReady = { viewModel.onCameraReady(it) }
         )
     }
     LaunchedEffect(cameraState.flash) {
         cameraController.setFlash(cameraState.flash)
     }
+    LaunchedEffect(cameraState.cameraReady) {
+        if (cameraState.cameraReady) viewModel.setMaxFps(cameraController.highestSupportedFps())
+    }
 
     // Attach the manual controller once the camera is bound, then push state to it.
-    LaunchedEffect(proState, cameraState.cameraReady, cameraState.lensFacing) {
+    LaunchedEffect(proState, cameraState.cameraReady, cameraState.lensFacing, cameraState.faceGuide) {
         if (cameraState.cameraReady) {
             val cam = cameraController.currentCamera()
             val info = cameraController.currentCameraInfo()
@@ -142,13 +191,45 @@ fun ViewfinderScreen(
         }
         frameProcessor.mode = mode
         frameProcessor.enabled = proState.enabled && mode != OverlayMode.NONE
-        cameraController.setFrameAnalyzer(if (proState.enabled) frameProcessor else null)
+
+        // Manual mode takes priority over the face-guide analyzer.
+        val analyzer = when {
+            proState.enabled -> frameProcessor
+            cameraState.faceGuide -> faceGuideAnalyzer
+            else -> null
+        }
+        cameraController.setFrameAnalyzer(analyzer)
     }
+
+    // Publish the framing-guide face bounds to the ViewModel.
+    val faceBounds by faceGuideAnalyzer.bounds.collectAsState()
+    LaunchedEffect(faceBounds) { viewModel.onFaceHint(faceBounds) }
 
     // The accelerometer only runs while manual mode is on.
     DisposableEffect(proState.enabled) {
         if (proState.enabled) levelSensor.start() else levelSensor.stop()
         onDispose { levelSensor.stop() }
+    }
+
+    // Live captions lifecycle.
+    LaunchedEffect(cameraState.liveCaptions) {
+        if (cameraState.liveCaptions) {
+            liveCaptions.onLine = { text, isFinal -> viewModel.onLiveCaption(text, isFinal) }
+            liveCaptions.onError = { viewModel.setLiveCaptions(false) }
+            audioPermission.launch(Manifest.permission.RECORD_AUDIO)
+            liveCaptions.start()
+        } else {
+            liveCaptions.stop()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            liveCaptions.stop()
+            faceGuideAnalyzer.close()
+            videoRecorder.release()
+            cameraController.unbind()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -175,6 +256,15 @@ fun ViewfinderScreen(
                 .background(tint)
         )
 
+        // On-device "centre on face" framing guide.
+        AnimatedVisibility(
+            visible = cameraState.faceGuide,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(160))
+        ) {
+            FaceGuideOverlay(bounds = faceHint, modifier = Modifier.fillMaxSize())
+        }
+
         // Live manual HUD: grid, level, histogram and live overlays.
         AnimatedVisibility(
             visible = proState.enabled,
@@ -189,7 +279,18 @@ fun ViewfinderScreen(
             )
         }
 
-        // Top control bar.
+        // Top scrim + control bar.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xCC000000), Color(0x00000000))
+                    )
+                )
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -202,6 +303,13 @@ fun ViewfinderScreen(
                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { viewModel.setFaceGuide(!cameraState.faceGuide) }) {
+                    Icon(
+                        Icons.Filled.FaceRetouchingNatural,
+                        contentDescription = "Centre on face guide",
+                        tint = if (cameraState.faceGuide) Violet else Color.White
+                    )
+                }
                 TextButton(onClick = { viewModel.toggleProMode() }) {
                     Icon(
                         Icons.Filled.Tune,
@@ -223,7 +331,54 @@ fun ViewfinderScreen(
             }
         }
 
-        // Countdown / developing overlay.
+        // Vintage / Beauty family chips (large rounded).
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 64.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ModeChip(
+                label = "Vintage",
+                selected = preset?.isVintage != false,
+                onClick = {
+                    viewModel.setPickerGroup(CameraGroup.VINTAGE)
+                    viewModel.filmRepository.ofGroup(CameraGroup.VINTAGE).firstOrNull()
+                        ?.let { viewModel.selectCamera(it) }
+                    showPicker = true
+                }
+            )
+            ModeChip(
+                label = "Beauty",
+                selected = preset?.isBeauty == true,
+                onClick = {
+                    viewModel.setPickerGroup(CameraGroup.BEAUTY)
+                    viewModel.filmRepository.ofGroup(CameraGroup.BEAUTY).firstOrNull()
+                        ?.let { viewModel.selectCamera(it) }
+                    showPicker = true
+                }
+            )
+        }
+
+        // Live caption preview.
+        if (cameraState.liveCaptions && cameraState.liveCaptionText.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 240.dp, start = 24.dp, end = 24.dp)
+                    .glass(shape = RoundedCornerShape(16.dp), alpha = 0.35f)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = cameraState.liveCaptionText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // Countdown / developing / processing overlays.
         if (countdown > 0) {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color(0x99000000)),
@@ -255,20 +410,58 @@ fun ViewfinderScreen(
                 }
             }
         }
+        if (cameraState.processingVideo) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xCC000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Violet)
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "Finishing your clip...",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${(cameraState.videoProgress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
 
         // Bottom controls.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 28.dp),
+                .padding(bottom = 104.dp)
+                .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Recording readout.
+            AnimatedVisibility(
+                visible = cameraState.isRecording,
+                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(bottom = 10.dp)
+                ) {
+                    RecBadge()
+                    GlassPill(text = formatElapsed(cameraState.recordingElapsedMs))
+                }
+            }
+
             // Selected camera chip.
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0x66000000))
+                    .glass(shape = RoundedCornerShape(22.dp), alpha = 0.22f)
                     .clickable { showPicker = true }
                     .padding(horizontal = 18.dp, vertical = 9.dp)
             ) {
@@ -280,10 +473,106 @@ fun ViewfinderScreen(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(14.dp))
 
+            // Photo / Video mode chips.
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ModeChip(
+                    label = "Photo",
+                    selected = cameraState.captureMode == CaptureMode.PHOTO,
+                    onClick = { viewModel.setCaptureMode(CaptureMode.PHOTO) }
+                )
+                ModeChip(
+                    label = "Video",
+                    selected = cameraState.captureMode == CaptureMode.VIDEO,
+                    onClick = { viewModel.setCaptureMode(CaptureMode.VIDEO) }
+                )
+            }
+
+            // Video extras: speed + captions.
+            AnimatedVisibility(
+                visible = cameraState.captureMode == CaptureMode.VIDEO,
+                enter = fadeIn(tween(200)) + expandVertically(tween(200)),
+                exit = fadeOut(tween(160)) + shrinkVertically(tween(160))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp)
+                        .glass(shape = RoundedCornerShape(24.dp), alpha = 0.16f)
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Speed chips + fps hint.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        VideoSpeed.entries.forEach { speed ->
+                            ModeChip(
+                                label = speed.label,
+                                selected = cameraState.videoSpeed == speed,
+                                onClick = { viewModel.setVideoSpeed(speed) }
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        GlassPill(
+                            text = if (cameraState.highFpsAvailable) {
+                                "${cameraState.maxFps}fps HD"
+                            } else {
+                                "high-fps n/a"
+                            }
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Caption field + live captions toggle.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .glass(shape = RoundedCornerShape(16.dp), alpha = 0.22f)
+                                .padding(horizontal = 14.dp, vertical = 11.dp)
+                        ) {
+                            if (captionDraft.isEmpty()) {
+                                Text(
+                                    text = "Add a caption...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                            BasicTextField(
+                                value = captionDraft,
+                                onValueChange = {
+                                    captionDraft = it
+                                    viewModel.setTypedCaption(it)
+                                },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                                cursorBrush = SolidColor(Color.White),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        ModeChip(
+                            label = "CC Live",
+                            selected = cameraState.liveCaptions,
+                            onClick = { viewModel.toggleLiveCaptions() }
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Shutter row.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -291,24 +580,56 @@ fun ViewfinderScreen(
                     Icon(Icons.Filled.PhotoLibrary, contentDescription = "Gallery", tint = Color.White)
                 }
                 IconButton(onClick = { viewModel.cycleSelfTimer() }) {
-                    Icon(Icons.Filled.Timer, contentDescription = "Self timer", tint = timerTint(cameraState.selfTimer))
+                    Icon(
+                        Icons.Filled.Timer,
+                        contentDescription = "Self timer",
+                        tint = timerTint(cameraState.selfTimer)
+                    )
                 }
 
-                // Shutter button.
                 ShutterButton(
-                    capturing = cameraState.isCapturing,
+                    capturing = cameraState.isCapturing || cameraState.processingVideo,
+                    recording = cameraState.isRecording,
+                    videoMode = cameraState.captureMode == CaptureMode.VIDEO,
                     onClick = {
-                        scope.launch {
-                            if (cameraState.selfTimer.seconds > 0) {
-                                for (s in cameraState.selfTimer.seconds downTo 1) {
-                                    countdown = s
-                                    delay(1000)
+                        if (cameraState.captureMode == CaptureMode.VIDEO) {
+                            if (videoRecorder.isRecording) {
+                                videoRecorder.stop()
+                            } else {
+                                if (!videoRecorder.canRecordAudio()) {
+                                    audioPermission.launch(Manifest.permission.RECORD_AUDIO)
                                 }
-                                countdown = 0
+                                val file = File(
+                                    context.cacheDir,
+                                    "facecam_rec_${System.currentTimeMillis()}.mp4"
+                                )
+                                val started = videoRecorder.start(
+                                    file = file,
+                                    withAudio = true,
+                                    onElapsed = { viewModel.onRecordingElapsed(it) },
+                                    onSaved = { saved ->
+                                        viewModel.onRecordingStopped()
+                                        if (saved != null) {
+                                            viewModel.finishVideo(saved, preset?.name ?: "Video")
+                                        }
+                                    },
+                                    onError = { viewModel.notify(it) }
+                                )
+                                if (started) viewModel.onRecordingStarted()
                             }
-                            val bmp = runCatching { cameraController.capture() }.getOrNull()
-                            if (bmp != null && preset != null) {
-                                viewModel.developCapture(bmp, preset!!.name)
+                        } else {
+                            scope.launch {
+                                if (cameraState.selfTimer.seconds > 0) {
+                                    for (s in cameraState.selfTimer.seconds downTo 1) {
+                                        countdown = s
+                                        delay(1000)
+                                    }
+                                    countdown = 0
+                                }
+                                val bmp = runCatching { cameraController.capture() }.getOrNull()
+                                if (bmp != null && preset != null) {
+                                    viewModel.developCapture(bmp, preset!!.name)
+                                }
                             }
                         }
                     }
@@ -342,9 +663,16 @@ fun ViewfinderScreen(
                 state = proState,
                 capabilities = proCaps,
                 onUpdate = { transform -> viewModel.updateProState(transform) },
-                modifier = Modifier.padding(bottom = 172.dp)
+                modifier = Modifier.padding(bottom = 248.dp)
             )
         }
+
+        // Bottom navigation bar.
+        FaceCamBottomBar(
+            current = HomeTab.CAMERA,
+            onSelect = onNavigate,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
 
         if (showPicker) {
             CameraPickerSheet(
@@ -355,7 +683,7 @@ fun ViewfinderScreen(
 
         message?.let {
             LaunchedEffect(it) {
-                delay(1800)
+                delay(2200)
                 viewModel.consumeMessage()
             }
         }
@@ -363,12 +691,15 @@ fun ViewfinderScreen(
 }
 
 /**
- * A soft, modern shutter button: a thin outer ring with an inner disc that eases
- * in slightly while a capture is in progress.
+ * A bigger, friendlier shutter: a gradient outer ring with an inner disc that
+ * eases in while capturing. In video mode the disc turns into a record dot, and
+ * a rounded square while recording.
  */
 @Composable
 private fun ShutterButton(
     capturing: Boolean,
+    recording: Boolean,
+    videoMode: Boolean,
     onClick: () -> Unit
 ) {
     val innerScale by animateFloatAsState(
@@ -376,31 +707,80 @@ private fun ShutterButton(
         animationSpec = tween(durationMillis = 160),
         label = "shutterInner"
     )
+    val ring = if (videoMode) {
+        Brush.linearGradient(listOf(Color(0xFFFF6B6B), Color(0xFFE24BC0)))
+    } else {
+        FaceCamGradient
+    }
     Box(
         modifier = Modifier
-            .size(80.dp)
+            .size(96.dp)
             .clip(CircleShape)
-            .background(Color(0x1FFFFFFF))
-            .border(3.dp, Color.White, CircleShape)
+            .background(ring)
+            .padding(4.dp)
+            .clip(CircleShape)
+            .background(Color(0x33000000))
             .clickable(enabled = !capturing, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(if (recording) 40.dp else 76.dp)
                 .graphicsLayer {
                     scaleX = innerScale
                     scaleY = innerScale
                 }
-                .clip(CircleShape)
+                .clip(if (recording) RoundedCornerShape(10.dp) else CircleShape)
                 .background(
-                    if (capturing) MaterialTheme.colorScheme.primary else Color.White
+                    when {
+                        recording -> Color(0xFFFF3B5C)
+                        capturing -> Color.White.copy(alpha = 0.85f)
+                        else -> Color.White
+                    }
                 )
         )
+    }
+}
+
+/** Draws the "centre on face" framing guide from the detected face bounds. */
+@Composable
+private fun FaceGuideOverlay(bounds: RectF?, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val density = LocalDensity.current
+        val wPx = constraints.maxWidth.toFloat()
+        val hPx = constraints.maxHeight.toFloat()
+
+        if (bounds != null && wPx > 0f && hPx > 0f) {
+            val left = with(density) { (bounds.left * wPx).toDp() }
+            val top = with(density) { (bounds.top * hPx).toDp() }
+            val width = with(density) { ((bounds.right - bounds.left) * wPx).toDp() }
+            val height = with(density) { ((bounds.bottom - bounds.top) * hPx).toDp() }
+            Box(
+                modifier = Modifier
+                    .padding(start = left, top = top)
+                    .size(width = width.coerceAtLeast(40.dp), height = height.coerceAtLeast(40.dp))
+                    .border(2.dp, Violet, RoundedCornerShape(22.dp))
+            )
+        } else {
+            // A friendly centred hint when no face is detected yet.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(200.dp)
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape)
+            )
+        }
     }
 }
 
 private fun timerTint(timer: SelfTimer): Color = when (timer) {
     SelfTimer.OFF -> Color.White
     else -> Color(0xFFF0B45C)
+}
+
+private fun formatElapsed(ms: Long): String {
+    val totalSeconds = (ms / 1000L).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
+    return "%d:%02d".format(minutes, seconds)
 }

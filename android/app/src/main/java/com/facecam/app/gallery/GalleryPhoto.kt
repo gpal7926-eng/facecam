@@ -12,6 +12,7 @@ import java.io.File
  * @param cameraName display name of the camera.
  * @param timestamp epoch millis the photo was created.
  * @param uri the MediaStore uri once the photo has been published to the device.
+ * @param isVideo true when this entry is a video clip rather than a still.
  */
 data class GalleryPhoto(
     val id: String,
@@ -19,7 +20,8 @@ data class GalleryPhoto(
     val cameraId: String,
     val cameraName: String,
     val timestamp: Long,
-    val uri: Uri? = null
+    val uri: Uri? = null,
+    val isVideo: Boolean = false
 ) {
     val path: String get() = file.absolutePath
 }

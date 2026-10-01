@@ -1,32 +1,23 @@
 /* FaceCam — web preview app (HTML / CSS / JavaScript).
  *
- * Fully free: every camera is unlocked, there is no paywall and there are no
- * ads. Everything runs on-device with no network calls.
+ * Free, offline, no ads. Two camera families (vintage film / beauty) and two
+ * capture modes (photo / video). Video records with the selected look baked in,
+ * supports slow motion, and burns in subtitles.
  *
- *   localStorage  -> settings, save counter, seen flag
- *   IndexedDB     -> captured photos (with an in-memory write-through copy)
- *   getUserMedia  -> live viewfinder  (falls back to a built-in demo scene)
- *   <canvas>      -> the film + beauty pipelines
- *
- * Two camera families: 'vintage' (film simulations) and 'beauty' (clean,
- * iPhone-like enhance).
+ *   localStorage  -> settings, seen flag
+ *   IndexedDB     -> photos and video blobs (with an in-memory write-through copy)
+ *   getUserMedia  -> viewfinder  (falls back to a built-in demo scene)
+ *   <canvas>      -> film + beauty pipelines, and the video frame pipeline
  */
 (function () {
   'use strict';
 
   /* ------------------------------------------------------------------ *
-   * Local storage
+   * Storage
    * ------------------------------------------------------------------ */
   const LS = {
-    get(key, fallback) {
-      try {
-        const v = localStorage.getItem('facecam.' + key);
-        return v === null ? fallback : JSON.parse(v);
-      } catch (e) { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem('facecam.' + key, JSON.stringify(value)); } catch (e) {}
-    }
+    get(k, f) { try { const v = localStorage.getItem('facecam.' + k); return v === null ? f : JSON.parse(v); } catch (e) { return f; } },
+    set(k, v) { try { localStorage.setItem('facecam.' + k, JSON.stringify(v)); } catch (e) {} }
   };
 
   const store = {
@@ -36,23 +27,14 @@
       });
     },
     saveSettings(s) { LS.set('settings', s); },
-    saves() { return LS.get('saves', 0); },
-    bumpSaves() { const n = this.saves() + 1; LS.set('saves', n); return n; },
     seen() { return LS.get('seen', false); },
     markSeen() { LS.set('seen', true); },
-    reset() {
-      ['settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
-    }
+    reset() { ['settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k)); }
   };
 
-  /* ------------------------------------------------------------------ *
-   * Photo store — write-through so the gallery is always instant
-   * ------------------------------------------------------------------ */
-  const Photos = {
-    db: null,
-    mem: [],
-    nextId: 1,
-
+  /* Write-through media store: memory first (instant), IndexedDB for persistence. */
+  const Media = {
+    db: null, mem: [], nextId: 1,
     open() {
       return new Promise((resolve) => {
         if (!window.indexedDB) { resolve(null); return; }
@@ -63,29 +45,18 @@
         catch (e) { clearTimeout(giveUp); resolve(null); return; }
         req.onupgradeneeded = () => {
           const db = req.result;
-          if (!db.objectStoreNames.contains('photos')) {
-            db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
-          }
+          if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
         };
-        req.onsuccess = () => {
-          this.db = req.result;
-          clearTimeout(giveUp);
-          if (!settled) { settled = true; resolve(this.db); }
-        };
+        req.onsuccess = () => { this.db = req.result; clearTimeout(giveUp); if (!settled) { settled = true; resolve(this.db); } };
         req.onerror = () => { clearTimeout(giveUp); if (!settled) { settled = true; resolve(null); } };
       });
     },
-
-    add(photo) {
-      const rec = Object.assign({}, photo, { id: this.nextId++ });
+    add(item) {
+      const rec = Object.assign({}, item, { id: this.nextId++ });
       this.mem.push(rec);
-      if (this.db) {
-        try { this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo); }
-        catch (e) { /* memory copy already holds it */ }
-      }
+      if (this.db) { try { this.db.transaction('photos', 'readwrite').objectStore('photos').add(item); } catch (e) {} }
       return Promise.resolve(rec.id);
     },
-
     all() {
       return new Promise((resolve) => {
         const merge = (extra) => {
@@ -104,22 +75,21 @@
         } catch (e) { clearTimeout(giveUp); merge([]); }
       });
     },
-
     del(id) {
       this.mem = this.mem.filter(p => p.id !== id);
-      if (this.db) {
-        try { this.db.transaction('photos', 'readwrite').objectStore('photos').delete(id); }
-        catch (e) { /* ignore */ }
-      }
+      if (this.db) { try { this.db.transaction('photos', 'readwrite').objectStore('photos').delete(id); } catch (e) {} }
       return Promise.resolve();
     }
   };
 
   /* ------------------------------------------------------------------ *
-   * State + helpers
+   * State
    * ------------------------------------------------------------------ */
   const state = {
     cameraId: 'nomo_135_b',
+    family: 'vintage',
+    mode: 'photo',
+    speed: 1,
     facing: 'environment',
     flash: false,
     torchAvailable: false,
@@ -127,28 +97,27 @@
     stream: null,
     demo: false,
     demoSource: null,
-    lastPhoto: null,
+    last: null,            // { kind:'photo'|'video', ... }
     lastOriginal: null,
     showingOriginal: false,
     double: false,
     firstShot: null,
     pendingTimer: null,
+    recTimer: null,
     busy: false,
-    camGen: 0
+    camGen: 0,
+    viewerItem: null
   };
 
-  const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.prototype.slice.call(document.querySelectorAll(s));
   const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
-  const groupOf = (cam) => (cam && cam.group) || 'vintage';
+  const groupOf = (c) => (c && c.group) || 'vintage';
 
-  function withTimeout(promise, ms) {
-    return new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('camera-timeout')), ms);
-      promise.then(
-        v => { clearTimeout(t); resolve(v); },
-        e => { clearTimeout(t); reject(e); }
-      );
+  function withTimeout(p, ms) {
+    return new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error('camera-timeout')), ms);
+      p.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); });
     });
   }
 
@@ -157,57 +126,49 @@
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(t._h);
-    t._h = setTimeout(() => t.classList.remove('show'), 1900);
+    t._h = setTimeout(() => t.classList.remove('show'), 2000);
   }
 
   function show(id) {
     $$('.screen').forEach(s => s.classList.toggle('active', s.id === id));
     document.body.dataset.screen = id;
     if (id !== 'screen-viewfinder' && state.pendingTimer) {
-      clearInterval(state.pendingTimer);
-      state.pendingTimer = null;
+      clearInterval(state.pendingTimer); state.pendingTimer = null;
       $('#countdown').classList.remove('show');
     }
   }
 
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
   /* ------------------------------------------------------------------ *
-   * Built-in demo scene
+   * Demo scene
    * ------------------------------------------------------------------ */
   function drawSampleScene(canvas) {
     canvas.width = 540; canvas.height = 960;
     const g = canvas.getContext('2d');
     const grad = g.createLinearGradient(0, 0, 0, 960);
-    grad.addColorStop(0, '#1d3d72');
-    grad.addColorStop(0.42, '#e2814a');
-    grad.addColorStop(0.62, '#f7c46d');
-    grad.addColorStop(1, '#6b4a3a');
+    grad.addColorStop(0, '#1d3d72'); grad.addColorStop(0.42, '#e2814a');
+    grad.addColorStop(0.62, '#f7c46d'); grad.addColorStop(1, '#6b4a3a');
     g.fillStyle = grad; g.fillRect(0, 0, 540, 960);
-
-    g.beginPath(); g.arc(355, 330, 150, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(255,220,140,0.20)'; g.fill();
-    g.beginPath(); g.arc(355, 330, 92, 0, Math.PI * 2);
-    g.fillStyle = '#fff3cd'; g.fill();
-
+    g.beginPath(); g.arc(355, 330, 150, 0, Math.PI * 2); g.fillStyle = 'rgba(255,220,140,0.20)'; g.fill();
+    g.beginPath(); g.arc(355, 330, 92, 0, Math.PI * 2); g.fillStyle = '#fff3cd'; g.fill();
     g.fillStyle = '#4b3a55';
     g.beginPath(); g.moveTo(-40, 700); g.lineTo(190, 470); g.lineTo(430, 700); g.closePath(); g.fill();
     g.fillStyle = '#38293f';
     g.beginPath(); g.moveTo(250, 720); g.lineTo(470, 520); g.lineTo(640, 720); g.closePath(); g.fill();
     g.fillStyle = '#241c2c'; g.fillRect(0, 690, 540, 270);
-
     for (let i = 0; i < 5; i++) {
       const x = 60 + i * 105, y = 690;
       g.fillStyle = '#2f2438'; g.fillRect(x - 4, y - 40, 8, 45);
-      g.beginPath(); g.arc(x, y - 52, 22, 0, Math.PI * 2);
-      g.fillStyle = '#3d6b4f'; g.fill();
+      g.beginPath(); g.arc(x, y - 52, 22, 0, Math.PI * 2); g.fillStyle = '#3d6b4f'; g.fill();
     }
-
     g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.font = '600 26px -apple-system, Segoe UI, sans-serif';
-    g.fillText('13:42', 40, 70);
-
+    g.font = '600 26px -apple-system, Segoe UI, sans-serif'; g.fillText('13:42', 40, 70);
     g.fillStyle = 'rgba(255,255,255,0.75)';
-    g.font = '600 17px -apple-system, Segoe UI, sans-serif';
-    g.fillText('FaceCam demo scene', 40, 930);
+    g.font = '600 17px -apple-system, Segoe UI, sans-serif'; g.fillText('FaceCam demo scene', 40, 930);
   }
 
   /* ------------------------------------------------------------------ *
@@ -223,9 +184,6 @@
       showFallback('Is browser mein camera support nahi hai.');
       return;
     }
-    // A file opened straight from disk (file://) is NOT a secure context, so the
-    // browser blocks the camera completely. No app can work around this — the
-    // page has to be served over https:// or localhost. Say so plainly.
     if (location.protocol === 'file:' || window.isSecureContext === false) {
       showFallback(
         'Camera isliye nahi chala kyunki aap ye file seedha kholiye hain (file://).',
@@ -240,17 +198,15 @@
         navigator.mediaDevices.getUserMedia({
           video: { facingMode: state.facing, width: { ideal: 1440 }, height: { ideal: 1920 } },
           audio: false
-        }),
-        7000
-      );
+        }), 7000);
       if (!stream || !stream.getVideoTracks().length) throw new Error('no-video-track');
       if (gen !== state.camGen) { stream.getTracks().forEach(t => t.stop()); return; }
       state.stream = stream;
-      const video = $('#video');
-      video.srcObject = stream;
-      await video.play().catch(() => {});
+      const v = $('#video');
+      v.srcObject = stream;
+      await v.play().catch(() => {});
       $('#cam-fallback').classList.remove('show');
-      video.style.display = 'block';
+      v.style.display = 'block';
       applyTorch();
       if (typeof Pro !== 'undefined' && Pro.refresh) Pro.refresh();
     } catch (e) {
@@ -273,10 +229,7 @@
   }
 
   function stopCamera() {
-    if (state.stream) {
-      state.stream.getTracks().forEach(t => t.stop());
-      state.stream = null;
-    }
+    if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
     state.torchAvailable = false;
   }
 
@@ -286,11 +239,8 @@
     if (!track || !track.getCapabilities) return;
     const caps = track.getCapabilities();
     if (caps && caps.torch) {
-      try {
-        await track.applyConstraints({ advanced: [{ torch: state.flash }] });
-        state.torchAvailable = true;
-        return;
-      } catch (e) { /* fall through to screen flash */ }
+      try { await track.applyConstraints({ advanced: [{ torch: state.flash }] }); state.torchAvailable = true; return; }
+      catch (e) {}
     }
     state.torchAvailable = false;
   }
@@ -305,7 +255,7 @@
     state.demo = true;
     state.demoSource = cv;
     applyLiveLook();
-    toast('Demo scene ready — shutter dabayein');
+    toast('Demo scene ready');
   }
 
   function applyLiveLook() {
@@ -313,11 +263,10 @@
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
     const vintage = groupOf(cam) === 'vintage';
-    $('#live-vignette').style.opacity = vintage
-      ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
-    const frameEl = $('#live-frame');
-    frameEl.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
-    frameEl.style.setProperty('--frame-color', (vintage && cam.frame) ? cam.frame.color : 'transparent');
+    $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
+    const f = $('#live-frame');
+    f.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
+    f.style.setProperty('--frame-color', (vintage && cam.frame) ? cam.frame.color : 'transparent');
     $('#cam-name').textContent = cam.name;
     $('#cam-tag').textContent = cam.tag;
   }
@@ -325,7 +274,7 @@
   function hasSource() { return !!state.stream || state.demo; }
 
   /* ------------------------------------------------------------------ *
-   * Capture
+   * Photo capture
    * ------------------------------------------------------------------ */
   function grabCanvas(extraFilter) {
     const cam = cameraById(state.cameraId);
@@ -333,19 +282,12 @@
     let w = source.videoWidth || source.width || 1080;
     let h = source.videoHeight || source.height || 1440;
     const maxDim = 1300;
-    if (Math.max(w, h) > maxDim) {
-      const s = maxDim / Math.max(w, h);
-      w = Math.round(w * s); h = Math.round(h * s);
-    }
+    if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
     return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
   }
 
-  /* One place that decides which pipeline a shot goes through. */
   function developShot(canvas, cam, settings) {
-    if (groupOf(cam) === 'beauty') {
-      Effects.applyBeauty(canvas, cam.beauty);
-      return canvas;                       // clean photo: no frame, no band
-    }
+    if (groupOf(cam) === 'beauty') { Effects.applyBeauty(canvas, cam.beauty); return canvas; }
     Effects.process(canvas, cam, settings);
     return Effects.withBranding(canvas, cam, settings);
   }
@@ -357,41 +299,28 @@
   }
 
   function shutterPressed() {
+    if (!hasSource()) { toast('Pehle camera on karein ya demo scene chalayein'); return; }
+    if (state.mode === 'video') { toggleRecording(); return; }
     if (state.busy) return;
-    if (!hasSource()) {
-      toast('Pehle camera on karein ya demo scene chalayein');
-      return;
-    }
     if (state.timer > 0) {
       let n = state.timer;
-      const overlay = $('#countdown');
-      overlay.classList.add('show');
-      overlay.textContent = n;
+      const o = $('#countdown');
+      o.classList.add('show'); o.textContent = n;
       state.pendingTimer = setInterval(() => {
         n -= 1;
-        if (n <= 0) {
-          clearInterval(state.pendingTimer);
-          state.pendingTimer = null;
-          overlay.classList.remove('show');
-          shoot();
-        } else {
-          overlay.textContent = n;
-        }
+        if (n <= 0) { clearInterval(state.pendingTimer); state.pendingTimer = null; o.classList.remove('show'); shoot(); }
+        else o.textContent = n;
       }, 1000);
-    } else {
-      shoot();
-    }
+    } else shoot();
   }
 
   function shoot() {
     if (state.busy || !hasSource()) return;
     state.busy = true;
     setTimeout(() => { state.busy = false; }, 350);
-
     const cam = cameraById(state.cameraId);
     const useFlash = state.flash && !state.torchAvailable;
     if (state.flash) screenFlash();
-
     const raw = grabCanvas(useFlash ? ' brightness(1.35) contrast(1.05)' : '');
     state.lastOriginal = raw.toDataURL('image/jpeg', 0.9);
 
@@ -401,7 +330,7 @@
         const chip = $('#double-chip');
         chip.querySelector('img').src = state.lastOriginal;
         chip.classList.add('show');
-        toast('Double exposure: pehla shot ho gaya — ab dusra lein');
+        toast('Double exposure: pehla shot ho gaya');
         return;
       }
       const merged = Effects.blend(state.firstShot, raw);
@@ -417,15 +346,15 @@
 
   function afterCapture(cam, canvas) {
     if (cam.instant) {
-      const developed = canvas.cloneNode(false);
-      developed.width = canvas.width; developed.height = canvas.height;
-      developed.getContext('2d').drawImage(canvas, 0, 0);
-      const out = developShot(developed, cam, store.settings());
-      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      const d = canvas.cloneNode(false);
+      d.width = canvas.width; d.height = canvas.height;
+      d.getContext('2d').drawImage(canvas, 0, 0);
+      const out = developShot(d, cam, store.settings());
+      state.last = { kind: 'photo', dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       runDeveloping();
     } else {
       const out = developShot(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      state.last = { kind: 'photo', dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       if (store.settings().sound) beep();
       openResult();
     }
@@ -433,7 +362,7 @@
 
   function runDeveloping() {
     const img = $('#dev-img');
-    img.src = state.lastPhoto.dataUrl;
+    img.src = state.last.dataUrl;
     img.classList.remove('developed');
     show('screen-developing');
     setTimeout(() => {
@@ -443,19 +372,28 @@
   }
 
   function openResult() {
+    const isVideo = state.last && state.last.kind === 'video';
     state.showingOriginal = false;
-    const img = $('#result-img');
-    img.src = state.lastPhoto.dataUrl;
-    $('#result-cam').textContent = state.lastPhoto.camName;
-    $('#btn-before').textContent = 'Original';
-    $('#btn-before').classList.remove('on');
+    $('#result-img').style.display = isVideo ? 'none' : 'block';
+    $('#result-video').style.display = isVideo ? 'block' : 'none';
+    $('#btn-before').style.display = isVideo ? 'none' : 'inline-block';
+    if (isVideo) {
+      const v = $('#result-video');
+      v.src = state.last.url;
+      v.loop = true;
+    } else {
+      $('#result-img').src = state.last.dataUrl;
+      $('#btn-before').textContent = 'Original';
+      $('#btn-before').classList.remove('on');
+    }
+    $('#result-cam').textContent = state.last.camName + (isVideo ? (state.last.slow ? ' \u00B7 ' + state.last.slow + 'x slow-mo' : ' \u00B7 video') : '');
     show('screen-result');
   }
 
   function toggleBefore() {
-    if (!state.lastPhoto) return;
+    if (!state.last || state.last.kind !== 'photo') return;
     state.showingOriginal = !state.showingOriginal;
-    $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.lastPhoto.dataUrl;
+    $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.last.dataUrl;
     $('#btn-before').textContent = state.showingOriginal ? 'Edited' : 'Original';
     $('#btn-before').classList.toggle('on', state.showingOriginal);
   }
@@ -463,71 +401,135 @@
   function beep() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'square';
-      o.frequency.value = 880;
-      g.gain.value = 0.05;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = 880; g.gain.value = 0.05;
       o.connect(g); g.connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + 0.05);
+      o.start(); o.stop(ctx.currentTime + 0.05);
       setTimeout(() => ctx.close(), 200);
     } catch (e) {}
   }
 
   /* ------------------------------------------------------------------ *
+   * Video capture
+   * ------------------------------------------------------------------ */
+  async function toggleRecording() {
+    if (Video.isRecording()) { await stopRecording(); return; }
+    if (!Video.supported()) { toast('Is browser mein video recording support nahi hai'); return; }
+
+    const cam = cameraById(state.cameraId);
+    Video.setCaption($('#caption-input').value);
+    const ok = await Video.start();
+    if (!ok) { toast('Recording start nahi ho payi'); return; }
+
+    $('#btn-shutter').classList.add('rec');
+    $('#rec-badge').classList.add('show');
+    $('#rec-time').textContent = '0:00';
+    state.recTimer = setInterval(() => {
+      $('#rec-time').textContent = fmtTime(Video.elapsed());
+      if (Video.elapsed() > 60000) stopRecording();
+    }, 250);
+    toast('Recording...');
+  }
+
+  async function stopRecording() {
+    clearInterval(state.recTimer); state.recTimer = null;
+    $('#btn-shutter').classList.remove('rec');
+    $('#rec-badge').classList.remove('show');
+    if (Video.setLiveCaptions) Video.setLiveCaptions(false);
+    const live = $('#live-captions'); if (live) live.checked = false;
+
+    const cam = cameraById(state.cameraId);
+    const blob = await Video.stop();
+    if (!blob || !blob.size) { toast('Recording khaali rahi'); return; }
+
+    let finalBlob = blob, slow = 0;
+    if (state.speed !== 1) {
+      toast('Slow motion bana rahe hain...');
+      try { finalBlob = await Video.bakeSlowMotion(blob, state.speed); slow = state.speed; }
+      catch (e) { finalBlob = blob; slow = 0; toast('Slow motion fail — normal speed rakha'); }
+    }
+
+    state.last = {
+      kind: 'video',
+      blob: finalBlob,
+      url: URL.createObjectURL(finalBlob),
+      camId: cam.id,
+      camName: cam.name,
+      caption: Video.getCaption(),
+      slow: slow,
+      size: finalBlob.size
+    };
+    openResult();
+  }
+
+  /* ------------------------------------------------------------------ *
    * Result actions
    * ------------------------------------------------------------------ */
-  async function savePhoto() {
-    if (!state.lastPhoto) return;
-    try {
-      await Photos.add({
-        dataUrl: state.lastPhoto.dataUrl,
-        camId: state.lastPhoto.camId,
-        camName: state.lastPhoto.camName,
-        ts: Date.now()
+  async function saveResult() {
+    if (!state.last) return;
+    if (state.last.kind === 'video') {
+      await Media.add({
+        kind: 'video', blob: state.last.blob, camId: state.last.camId,
+        camName: state.last.camName, caption: state.last.caption,
+        slow: state.last.slow, ts: Date.now()
       });
-    } catch (e) { /* storage unavailable — still deliver the file */ }
-    download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
-    store.bumpSaves();
-    toast('Gallery mein save ho gaya');
+      downloadUrl(state.last.url, 'FaceCam_' + Date.now() + '.webm');
+      toast('Video gallery mein save ho gaya');
+    } else {
+      await Media.add({
+        kind: 'photo', dataUrl: state.last.dataUrl, camId: state.last.camId,
+        camName: state.last.camName, ts: Date.now()
+      });
+      download(state.last.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
+      toast('Gallery mein save ho gaya');
+    }
+    renderMiniThumb();
   }
 
   function download(dataUrl, name) {
     const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.href = dataUrl; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  function downloadUrl(url, name) {
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
-  async function sharePhoto() {
-    if (!state.lastPhoto) return;
+  async function shareResult() {
+    if (!state.last) return;
     try {
-      const blob = await (await fetch(state.lastPhoto.dataUrl)).blob();
-      const file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' });
+      let blob, file;
+      if (state.last.kind === 'video') {
+        blob = state.last.blob;
+        file = new File([blob], 'FaceCam.webm', { type: blob.type || 'video/webm' });
+      } else {
+        blob = await (await fetch(state.last.dataUrl)).blob();
+        file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' });
+      }
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: 'FaceCam' });
         return;
       }
     } catch (e) {}
-    download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
-    toast('Share support nahi — photo download ho gayi');
+    if (state.last.kind === 'video') downloadUrl(state.last.url, 'FaceCam_' + Date.now() + '.webm');
+    else download(state.last.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
+    toast('Share support nahi — file download ho gayi');
   }
 
   /* ------------------------------------------------------------------ *
    * Gallery
    * ------------------------------------------------------------------ */
-  function paintGallery(photos) {
+  function paintGallery(items) {
     const grid = $('#gallery-grid');
-    photos.sort((a, b) => b.ts - a.ts);
+    items.sort((a, b) => b.ts - a.ts);
     grid.innerHTML = '';
-    $('#gallery-count').textContent = photos.length ? ' \u00B7 ' + photos.length : '';
-    $('#gallery-empty').style.display = photos.length ? 'none' : 'block';
+    $('#gallery-count').textContent = items.length ? ' \u00B7 ' + items.length : '';
+    $('#gallery-empty').style.display = items.length ? 'none' : 'block';
 
     const groups = {};
-    photos.forEach(p => { (groups[p.camName] = groups[p.camName] || []).push(p); });
+    items.forEach(p => { (groups[p.camName] = groups[p.camName] || []).push(p); });
 
     Object.keys(groups).forEach(name => {
       const h = document.createElement('div');
@@ -537,20 +539,27 @@
       groups[name].forEach(p => {
         const cell = document.createElement('button');
         cell.className = 'gallery-cell';
-        cell.innerHTML = '<img src="' + p.dataUrl + '" alt="">';
-        cell.addEventListener('click', () => openPhoto(p));
+        if (p.kind === 'video') {
+          const url = URL.createObjectURL(p.blob);
+          p._url = url;
+          cell.innerHTML = '<video src="' + url + '#t=0.1" muted playsinline preload="metadata"></video>' +
+                           '<span class="vid-badge">' + (p.slow ? p.slow + 'x' : 'VIDEO') + '</span>';
+        } else {
+          cell.innerHTML = '<img src="' + p.dataUrl + '" alt="">';
+        }
+        cell.addEventListener('click', () => openItem(p));
         grid.appendChild(cell);
       });
     });
 
-    if (photos.length) {
+    if (items.length) {
       const clear = document.createElement('button');
       clear.className = 'link-btn danger';
       clear.textContent = 'Clear gallery';
       clear.style.gridColumn = '1 / -1';
       clear.addEventListener('click', async () => {
         if (confirm('Poori gallery delete karein?')) {
-          for (const p of photos) { try { await Photos.del(p.id); } catch (e) {} }
+          for (const p of items) { try { await Media.del(p.id); } catch (e) {} }
           renderGallery();
         }
       });
@@ -559,86 +568,88 @@
   }
 
   function renderGallery() {
-    paintGallery(Photos.mem.slice());
-    Photos.all().then(list => paintGallery(list)).catch(() => {});
+    paintGallery(Media.mem.slice());
+    Media.all().then(list => paintGallery(list)).catch(() => {});
   }
 
-  function openPhoto(p) {
-    $('#viewer-img').src = p.dataUrl;
+  function renderMiniThumb() {
+    const el = $('#btn-gallery-mini span');
+    const last = Media.mem[Media.mem.length - 1];
+    if (!el || !last) return;
+    el.classList.add('has');
+    if (last.kind === 'video') { el.style.background = 'linear-gradient(135deg,#3a2a44,#5a3a55)'; }
+    else el.style.backgroundImage = 'url(' + last.dataUrl + ')';
+  }
+
+  function openItem(p) {
+    state.viewerItem = p;
+    const isVideo = p.kind === 'video';
+    $('#viewer-img').style.display = isVideo ? 'none' : 'block';
+    $('#viewer-video').style.display = isVideo ? 'block' : 'none';
+    $('#viewer-speed').style.display = isVideo ? 'flex' : 'none';
+
+    if (isVideo) {
+      const v = $('#viewer-video');
+      v.src = p._url || (p._url = URL.createObjectURL(p.blob));
+      v.playbackRate = 1;
+      $$('#viewer-speed .speed').forEach(b => b.classList.toggle('active', b.getAttribute('data-vspeed') === '1'));
+    } else {
+      $('#viewer-img').src = p.dataUrl;
+    }
     $('#viewer').classList.add('show');
+
     $('#viewer-delete').onclick = async () => {
-      try { await Photos.del(p.id); } catch (e) {}
+      try { await Media.del(p.id); } catch (e) {}
       $('#viewer').classList.remove('show');
-      renderGallery();
+      renderGallery(); renderMiniThumb();
     };
     $('#viewer-share').onclick = async () => {
       try {
-        const blob = await (await fetch(p.dataUrl)).blob();
-        const file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file] });
-          return;
-        }
+        let blob, file;
+        if (isVideo) { blob = p.blob; file = new File([blob], 'FaceCam.webm', { type: blob.type || 'video/webm' }); }
+        else { blob = await (await fetch(p.dataUrl)).blob(); file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' }); }
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
       } catch (e) {}
-      download(p.dataUrl, 'FaceCam_' + p.ts + '.jpg');
+      if (isVideo) downloadUrl(p._url, 'FaceCam_' + p.ts + '.webm');
+      else download(p.dataUrl, 'FaceCam_' + p.ts + '.jpg');
     };
-    $('#viewer-close').onclick = () => $('#viewer').classList.remove('show');
+    $('#viewer-close').onclick = () => {
+      const v = $('#viewer-video'); if (v) { try { v.pause(); } catch (e) {} }
+      $('#viewer').classList.remove('show');
+    };
   }
 
   /* ------------------------------------------------------------------ *
-   * Camera picker + cameras browser (all free, grouped by family)
+   * Camera strip + modes browser
    * ------------------------------------------------------------------ */
-  function tabGroup(rootSel) {
-    const active = $(rootSel + ' .tab.active');
-    return active ? active.getAttribute('data-group') : 'vintage';
-  }
-
-  function setTab(rootSel, group) {
-    $$(rootSel + ' .tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-group') === group));
-  }
-
-  function renderPicker(group) {
-    group = group || tabGroup('#picker-tabs');
-    const wrap = $('#picker-list');
-    wrap.innerHTML = '';
-    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
-      const item = document.createElement('button');
-      item.className = 'picker-item' + (cam.id === state.cameraId ? ' selected' : '');
-      item.innerHTML =
-        '<span class="swatch" style="filter:' + cam.filter + '"></span>' +
-        '<span class="pi-text"><strong>' + cam.name + '</strong><small>' + cam.tag + '</small></span>' +
-        '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Use') + '</span>';
-      item.addEventListener('click', () => {
-        selectCamera(cam.id);
-        closeSheet('#sheet-picker');
-        toast(cam.name + ' selected');
-      });
-      wrap.appendChild(item);
+  function renderStrip() {
+    const strip = $('#cam-strip');
+    strip.innerHTML = '';
+    CAMERAS.filter(c => groupOf(c) === state.family).forEach(cam => {
+      const chip = document.createElement('button');
+      chip.className = 'cam-chip' + (cam.id === state.cameraId ? ' active' : '');
+      chip.innerHTML = '<span class="dot" style="filter:' + cam.filter + '"></span><span>' + cam.name + '</span>';
+      chip.addEventListener('click', () => selectCamera(cam.id));
+      strip.appendChild(chip);
     });
+    const active = strip.querySelector('.cam-chip.active');
+    if (active && active.scrollIntoView) active.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 
-  function renderCameras(group) {
-    group = group || tabGroup('#shop-tabs');
-    const grid = $('#shop-grid');
-    grid.innerHTML = '';
-    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
-      const card = document.createElement('div');
-      card.className = 'shop-card' + (cam.id === state.cameraId ? ' active' : '');
-      card.innerHTML =
-        '<div class="shop-preview" style="filter:' + cam.filter + '">' +
-        '<div class="sp-vig"></div></div>' +
-        '<div class="shop-body"><strong>' + cam.name + '</strong>' +
-        '<small>' + cam.tag + '</small>' +
-        '<p>' + cam.desc + '</p>' +
-        '<button class="buy-btn ' + (cam.id === state.cameraId ? 'owned' : '') + '">' +
-        (cam.id === state.cameraId ? 'In use' : 'Use') + '</button></div>';
-      card.querySelector('.buy-btn').addEventListener('click', () => {
-        selectCamera(cam.id);
-        renderCameras(group);
-        toast(cam.name + ' selected');
-      });
-      grid.appendChild(card);
-    });
+  function setFamily(g) {
+    state.family = g;
+    $$('#family-row .fam').forEach(b => b.classList.toggle('active', b.getAttribute('data-group') === g));
+    const first = CAMERAS.filter(c => groupOf(c) === g)[0];
+    if (first && groupOf(cameraById(state.cameraId)) !== g) selectCamera(first.id);
+    else renderStrip();
+  }
+
+  function setMode(m) {
+    state.mode = m;
+    $$('#mode-row .mode-chip').forEach(b => b.classList.toggle('active', b.getAttribute('data-mode') === m));
+    $('#video-extras').classList.toggle('show', m === 'video');
+    $('#btn-shutter').title = m === 'video' ? 'Record' : 'Shutter';
+    $('#btn-double').style.display = m === 'video' ? 'none' : 'inline-flex';
   }
 
   function selectCamera(id) {
@@ -647,16 +658,43 @@
     s.defaultCamera = id;
     store.saveSettings(s);
     applyLiveLook();
+    renderStrip();
   }
 
-  function openCameras() {
-    setTab('#shop-tabs', groupOf(cameraById(state.cameraId)));
-    renderCameras();
+  function tabGroup(sel) {
+    const a = $(sel + ' .tab.active');
+    return a ? a.getAttribute('data-group') : 'vintage';
+  }
+  function setTab(sel, g) {
+    $$(sel + ' .tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-group') === g));
+  }
+
+  function renderModes(group) {
+    group = group || tabGroup('#shop-tabs');
+    const grid = $('#shop-grid');
+    grid.innerHTML = '';
+    CAMERAS.filter(c => groupOf(c) === group).forEach(cam => {
+      const card = document.createElement('div');
+      card.className = 'shop-card' + (cam.id === state.cameraId ? ' active' : '');
+      card.innerHTML =
+        '<div class="shop-preview" style="filter:' + cam.filter + '"><div class="sp-vig"></div></div>' +
+        '<div class="shop-body"><strong>' + cam.name + '</strong><small>' + cam.tag + '</small>' +
+        '<p>' + cam.desc + '</p>' +
+        '<button class="buy-btn ' + (cam.id === state.cameraId ? 'owned' : '') + '">' +
+        (cam.id === state.cameraId ? 'In use' : 'Use') + '</button></div>';
+      card.querySelector('.buy-btn').addEventListener('click', () => {
+        selectCamera(cam.id); setFamily(groupOf(cam)); renderModes(group); toast(cam.name + ' selected');
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  function openModes() {
+    const g = groupOf(cameraById(state.cameraId));
+    setTab('#shop-tabs', g);
+    renderModes(g);
     show('screen-shop');
   }
-
-  function closeSheet(sel) { const el = $(sel); if (el) el.classList.remove('show'); }
-  function openSheet(sel) { const el = $(sel); if (el) el.classList.add('show'); }
 
   /* ------------------------------------------------------------------ *
    * Settings
@@ -673,17 +711,17 @@
       const og = document.createElement('optgroup');
       og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
       CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id; opt.textContent = c.name;
-        if (c.id === s.defaultCamera) opt.selected = true;
-        og.appendChild(opt);
+        const o = document.createElement('option');
+        o.value = c.id; o.textContent = c.name;
+        if (c.id === s.defaultCamera) o.selected = true;
+        og.appendChild(o);
       });
       sel.appendChild(og);
     });
   }
 
   /* ------------------------------------------------------------------ *
-   * Import — free for everyone
+   * Import
    * ------------------------------------------------------------------ */
   function importPhoto(file) {
     const img = new Image();
@@ -695,7 +733,7 @@
       const canvas = Effects.capture(img, w, h, cam.filter);
       state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
       const out = developShot(canvas, cam, store.settings());
-      state.lastPhoto = { dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      state.last = { kind: 'photo', dataUrl: out.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
       openResult();
     };
     img.onerror = () => toast('Ye image load nahi ho payi');
@@ -718,8 +756,7 @@
     $('#btn-switch').addEventListener('click', async () => {
       if (state.demo) { toast('Demo mode mein camera switch nahi hota'); return; }
       state.facing = state.facing === 'environment' ? 'user' : 'environment';
-      await startCamera();
-      applyLiveLook();
+      await startCamera(); applyLiveLook();
       toast(state.facing === 'user' ? 'Front camera' : 'Back camera');
     });
 
@@ -727,9 +764,7 @@
       state.flash = !state.flash;
       $('#btn-flash').classList.toggle('on', state.flash);
       if (state.flash) await applyTorch();
-      toast(state.flash
-        ? (state.torchAvailable ? 'Flash (torch) on' : 'Flash on — screen flash')
-        : 'Flash off');
+      toast(state.flash ? (state.torchAvailable ? 'Flash (torch) on' : 'Flash on — screen flash') : 'Flash off');
     });
 
     $('#btn-timer').addEventListener('click', () => {
@@ -743,23 +778,44 @@
       state.firstShot = null;
       $('#double-chip').classList.remove('show');
       $('#btn-double').classList.toggle('on', state.double);
-      toast(state.double ? 'Double exposure ON — 2 shots lein' : 'Double exposure off');
+      toast(state.double ? 'Double exposure ON' : 'Double exposure off');
     });
 
-    $('#btn-picker').addEventListener('click', () => {
-      setTab('#picker-tabs', groupOf(cameraById(state.cameraId)));
-      renderPicker();
-      openSheet('#sheet-picker');
-    });
-    $('#btn-cameras').addEventListener('click', openCameras);
-    $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
-    $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
     $('#btn-import').addEventListener('click', () => $('#import-input').click());
+    $('#import-input').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) importPhoto(f);
+      e.target.value = '';
+    });
+
+    $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
+    $('#btn-gallery-mini').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
+
     $('#btn-pro').addEventListener('click', () => {
       const on = !Pro.isEnabled();
       Pro.setEnabled(on);
       $('#btn-pro').classList.toggle('on', on);
-      toast(on ? 'Manual mode on — scopes live' : 'Manual mode off');
+      toast(on ? 'Manual mode on' : 'Manual mode off');
+    });
+
+    $$('#family-row .fam').forEach(b => b.addEventListener('click', () => setFamily(b.getAttribute('data-group'))));
+    $$('#mode-row .mode-chip').forEach(b => b.addEventListener('click', () => setMode(b.getAttribute('data-mode'))));
+
+    $$('#speed-row .speed').forEach(b => b.addEventListener('click', () => {
+      state.speed = parseFloat(b.getAttribute('data-speed'));
+      $$('#speed-row .speed').forEach(x => x.classList.toggle('active', x === b));
+    }));
+
+    $('#caption-input').addEventListener('input', e => Video.setCaption(e.target.value));
+
+    $('#live-captions').addEventListener('change', e => {
+      if (e.target.checked) {
+        const ok = Video.setLiveCaptions(true, txt => { /* drawn onto the recording */ });
+        if (!ok) { e.target.checked = false; toast('Is browser mein live captions support nahi hai'); }
+        else toast('Live captions on');
+      } else {
+        Video.setLiveCaptions(false);
+      }
     });
 
     $$('[data-back]').forEach(b => b.addEventListener('click', () => {
@@ -767,22 +823,45 @@
       applyLiveLook();
     }));
 
-    $$('[data-close-sheet]').forEach(b => b.addEventListener('click', () => closeSheet('#' + b.getAttribute('data-close-sheet'))));
-    $$('.sheet-backdrop').forEach(b => b.addEventListener('click', () => b.parentElement.classList.remove('show')));
-
-    $$('#picker-tabs .tab').forEach(t => t.addEventListener('click', () => {
-      setTab('#picker-tabs', t.getAttribute('data-group'));
-      renderPicker(t.getAttribute('data-group'));
+    $$('.nav-btn').forEach(b => b.addEventListener('click', () => {
+      const n = b.getAttribute('data-nav');
+      if (n === 'gallery') { show('screen-gallery'); renderGallery(); }
+      else if (n === 'modes') openModes();
+      else { show('screen-viewfinder'); applyLiveLook(); }
     }));
+
     $$('#shop-tabs .tab').forEach(t => t.addEventListener('click', () => {
       setTab('#shop-tabs', t.getAttribute('data-group'));
-      renderCameras(t.getAttribute('data-group'));
+      renderModes(t.getAttribute('data-group'));
     }));
 
     $('#result-retake').addEventListener('click', () => { show('screen-viewfinder'); applyLiveLook(); });
-    $('#result-save').addEventListener('click', savePhoto);
-    $('#result-share').addEventListener('click', sharePhoto);
+    $('#result-save').addEventListener('click', saveResult);
+    $('#result-share').addEventListener('click', shareResult);
     $('#btn-before').addEventListener('click', toggleBefore);
+
+    $$('#viewer-speed .speed').forEach(b => b.addEventListener('click', () => {
+      const rate = parseFloat(b.getAttribute('data-vspeed'));
+      const v = $('#viewer-video');
+      if (v) v.playbackRate = rate;
+      $$('#viewer-speed .speed').forEach(x => x.classList.toggle('active', x === b));
+    }));
+    $('#speed-bake').addEventListener('click', async () => {
+      const p = state.viewerItem;
+      if (!p || p.kind !== 'video') return;
+      const rate = parseFloat(($('#viewer-speed .speed.active') || {}).getAttribute
+        ? $('#viewer-speed .speed.active').getAttribute('data-vspeed') : '1');
+      if (rate === 1) { toast('Pehle 0.5x ya 0.25x chunein'); return; }
+      toast('Slow motion bana rahe hain...');
+      try {
+        const slow = await Video.bakeSlowMotion(p.blob, rate);
+        await Media.del(p.id);
+        await Media.add({ kind: 'video', blob: slow, camId: p.camId, camName: p.camName, slow: rate, ts: Date.now() });
+        $('#viewer').classList.remove('show');
+        renderGallery();
+        toast('Slow-mo save ho gaya');
+      } catch (e) { toast('Slow motion fail ho gaya'); }
+    });
 
     $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
     $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
@@ -790,15 +869,7 @@
     $('#set-branding').addEventListener('change', e => { const s = store.settings(); s.branding = e.target.checked; store.saveSettings(s); });
     $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
     $('#set-reset').addEventListener('click', () => {
-      if (confirm('App reset karein? Saari settings hat jayengi.')) {
-        store.reset(); renderSettings(); toast('Reset ho gaya');
-      }
-    });
-
-    $('#import-input').addEventListener('change', e => {
-      const f = e.target.files[0];
-      if (f) importPhoto(f);
-      e.target.value = '';
+      if (confirm('App reset karein?')) { store.reset(); renderSettings(); toast('Reset ho gaya'); }
     });
 
     $('#fallback-demo').addEventListener('click', startDemo);
@@ -807,36 +878,42 @@
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';
       if (e.code === 'Space' && onVF) { e.preventDefault(); shutterPressed(); }
-      if (e.code === 'Escape') { closeSheet('#sheet-picker'); $('#viewer').classList.remove('show'); }
+      if (e.code === 'Escape') { $('#viewer').classList.remove('show'); }
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) stopCamera();
-      else if (document.body.dataset.screen === 'screen-viewfinder' && !state.demo) startCamera();
+      if (document.hidden) { if (!Video.isRecording()) stopCamera(); }
+      else if (document.body.dataset.screen === 'screen-viewfinder' && !state.demo && !Video.isRecording()) startCamera();
     });
 
-    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('beforeunload', () => { if (!Video.isRecording()) stopCamera(); });
   }
 
   /* ------------------------------------------------------------------ *
    * Boot
    * ------------------------------------------------------------------ */
   async function boot() {
-    Photos.open().catch(() => {});
+    Media.open().catch(() => {});
     const s = store.settings();
-    state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera))
-      ? s.defaultCamera : 'nomo_135_b';
+    state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera)) ? s.defaultCamera : 'nomo_135_b';
+    state.family = groupOf(cameraById(state.cameraId));
+
     bind();
     Pro.init({ getTrack: () => (state.stream ? state.stream.getVideoTracks()[0] : null) });
+    Video.init({
+      getSource: () => (state.demo ? state.demoSource : $('#video')),
+      getPreset: () => cameraById(state.cameraId),
+      getSettings: () => store.settings()
+    });
+
     applyLiveLook();
+    renderStrip();
+    setMode('photo');
+    renderMiniThumb();
     show('screen-splash');
     setTimeout(() => {
-      if (store.seen()) {
-        show('screen-viewfinder');
-        startCamera().then(applyLiveLook);
-      } else {
-        show('screen-onboarding');
-      }
+      if (store.seen()) { show('screen-viewfinder'); startCamera().then(applyLiveLook); }
+      else show('screen-onboarding');
     }, 1400);
   }
 

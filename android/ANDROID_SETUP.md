@@ -1,17 +1,23 @@
 # FaceCam - Android Setup Guide
 
 FaceCam is a **100% offline, completely free** camera app (Kotlin + Jetpack
-Compose). It ships two camera families:
+Compose). It ships two camera families plus a full video mode:
 
 - **Vintage** - 13 film-camera simulations with procedural grain, light leaks,
   vignette, dust, film frames, date stamps and the FaceCam branding band.
 - **Beauty** - 4 clean, iPhone-like cameras that enhance a photo (exposure,
   contrast, saturation, warm-neutral white balance, edge-aware skin smoothing,
-  sharpening and a soft glow) with **no** film character at all.
+  sharpening and a soft glow) with **no** film character at all. On-device ML
+  face detection steers the skin smoothing onto the face.
+- **Video** - record an MP4 (with audio), apply the selected look frame by frame
+  after the fact, burn in captions, and export in slow motion (0.5x / 0.25x).
+- **Subtitles** - a typed caption burned onto the clip, a sidecar `.srt`, and an
+  optional **live captions** mode using Android's on-device SpeechRecognizer.
 
 There is **no monetization of any kind**: no Google Play Billing, no AdMob, no
 in-app purchases, no paywall, no PRO membership and no ads. Every camera is
-unlocked for everyone from first launch.
+unlocked for everyone from first launch. The app makes **no network calls** and
+declares no `INTERNET` permission.
 
 This guide takes you from the raw project tree to a signed AAB on Google Play.
 
@@ -26,6 +32,8 @@ declared inline in `build.gradle.kts` / `app/build.gradle.kts`:
 | compileSdk / targetSdk | 34   |
 | minSdk           | 24         |
 | CameraX          | 1.3.4      |
+| CameraX video (`camera-video`) | 1.3.4 |
+| ML Kit face detection (`com.google.mlkit:face-detection`) | 16.1.7 |
 | Compose BOM      | 2024.09.02 |
 | Coil             | 2.7.0      |
 | ExifInterface    | 1.3.7      |
@@ -102,12 +110,26 @@ After regenerating, verify:
 
 ---
 
-## 3. No keys to paste - the app is free and offline
+## 3. Permissions - the app is free and offline
 
 Because FaceCam has **no ads and no billing**, there are **no AdMob ids, no
 billing product ids and no API keys anywhere in the project**. The manifest
-declares no `INTERNET` permission, and no app logic makes a network call. There
-is nothing to configure here before publishing.
+declares **no `INTERNET` permission**, and no app logic makes a network call.
+There is nothing to configure here before publishing.
+
+The permissions the app does request, all of them local:
+
+| Permission | Why |
+|------------|-----|
+| `CAMERA` | Capture. |
+| `RECORD_AUDIO` | Audio in video recordings, and on-device live captions (SpeechRecognizer). |
+| `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` | Publishing saved photos/videos to MediaStore on API 33+. |
+| `WRITE_EXTERNAL_STORAGE` (maxSdk 28) / `READ_EXTERNAL_STORAGE` (maxSdk 32) | Legacy MediaStore on older devices. |
+| `POST_NOTIFICATIONS` | The "developing" progress notice. |
+
+The manifest also declares a `<queries>` entry for
+`android.speech.RecognitionService` so the on-device recognizer is visible on
+API 30+ (no network permission is implied or required).
 
 The only outbound link in the app is the optional **Privacy policy** button in
 Settings, which opens a URL in the user's browser. Replace the placeholder
@@ -285,6 +307,115 @@ The library is credited, with its MIT text, in `CREDITS.md`.
 
 ---
 
+## 7A. Video recording
+
+A Photo / Video switch sits in the viewfinder. Video is recorded as a **plain
+MP4** - the camera look is deliberately *not* baked into the live pipeline.
+Instead, the clip is post-processed afterwards, frame by frame, with the same
+effect code the stills use. This keeps the live preview cheap and avoids any
+EGL / OpenGL surface work.
+
+New code lives under `app/src/main/java/com/facecam/app/video/`:
+
+| File | Purpose |
+|------|---------|
+| `VideoRecorder.kt` | Wraps CameraX `Recorder` / `VideoCapture`; records an MP4 into the app cache, with start / stop and an elapsed-time callback. |
+| `VideoEffectProcessor.kt` | Decodes the MP4 with `MediaMetadataRetriever`, applies the selected look (via `AnalogEffects` / `BeautyEffects`), burns the caption, re-encodes to a new MP4. Returns `Result(file, lookBaked, note)` and **falls back to copying the original** if processing fails. |
+| `SlowMotionExporter.kt` | Re-times the MP4 (see 7B). |
+| `SubtitleOverlay.kt` | Caption state + `.srt` writer + burn-in (see 7C). |
+| `LiveCaptionController.kt` | On-device SpeechRecognizer wrapper (see 7C). |
+| `Mp4FrameEncoder.kt` | A small, EGL-free H.264 encoder (software ARGB -> I420 -> `MediaCodec` -> `MediaMuxer`). |
+
+The finished clip is saved to the in-app gallery (`GalleryRepository.saveVideo`)
+and published to MediaStore (`MediaStoreSaver.saveVideo`, Movies/FaceCam).
+
+> Note on processing: frames are pulled with `MediaMetadataRetriever` and scaled
+to at most 1280 px on the long edge, then encoded to H.264. This is CPU-only and
+suits short clips; it is intentionally simple rather than real-time.
+
+---
+
+## 7B. Slow motion
+
+`video/SlowMotionExporter.kt` re-times a clip to **0.5x** or **0.25x** by
+re-encoding it with a **lower presentation-timestamp rate** - each source frame
+is written with a larger PTS step, so the same frames play over a longer
+time. **1x** is a straight copy of the original.
+
+The viewfinder offers a **1x / 0.5x / 0.25x** speed control. It also queries
+`CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES` (via
+`Camera2CameraInfo`) for the device's highest supported fps and shows whether
+**high-fps capture** is available.
+
+---
+
+## 7C. Subtitles and live captions
+
+`video/SubtitleOverlay.kt` holds:
+
+- a single **typed caption** line (burned into the video during post-processing),
+- timed **cues** (typed + live), which can be written out as a sidecar `.srt`,
+- incoming **live caption** lines from the on-device recognizer.
+
+The viewfinder has a caption text field and a **"CC Live"** toggle. The toggle
+starts `video/LiveCaptionController.kt`, which drives Android's
+`SpeechRecognizer` with `EXTRA_PREFER_OFFLINE = true`. There is no network
+permission, so captioning is strictly on-device. When no recognizer is present
+the toggle simply reports that captioning is unavailable.
+
+When a clip is finished, a `.srt` sidecar is written next to the saved video if
+there are any cues.
+
+---
+
+## 7D. On-device ML for Beauty
+
+The Beauty pipeline can now steer its skin smoothing with a **feathered face
+mask**. Detection uses ML Kit's **bundled** face model
+(`com.google.mlkit:face-detection`), which ships inside the APK - no download,
+no network.
+
+`app/src/main/java/com/facecam/app/ml/`:
+
+| File | Purpose |
+|------|---------|
+| `FaceMaskProvider.kt` | Detects faces in a `Bitmap` and builds a feathered alpha mask over the face region (eyes and mouth are carved back out). Also exposes the union face bounds. |
+| `FaceGuideAnalyzer.kt` | A throttled `ImageAnalysis.Analyzer` that publishes normalised face bounds for the framing guide. |
+
+`film/BeautyEffects.kt` gained an optional `faceMask` on its `Options`. Where the
+mask is opaque the smoothing runs at full strength; outside it a reduced amount
+is used, so the strongest effect lands on skin while eyes, brows and lips stay
+sharp (the existing edge-aware weighting protects them). **If no face is found
+the pipeline falls back to its original global behaviour.**
+
+The viewfinder also offers a **"centre on face"** framing guide that draws a box
+around the detected face using the bounds hint.
+
+---
+
+## 7E. The modern UI
+
+The UI was redesigned to feel like a current-generation social camera app:
+
+- **Gradient accents** (violet -> magenta -> coral) on buttons, chips and the
+  bottom bar (`ui/theme/Theme.kt`).
+- **Glassmorphic rounded cards** - see `Modifier.glass(...)` in
+  `ui/components/Glass.kt`.
+- A **bottom navigation bar** - Camera / Gallery / Modes
+  (`ui/components/BottomNav.kt`), wired in `ui/navigation/FaceCamNav.kt`.
+- **Large rounded mode chips** for Photo / Video and Vintage / Beauty
+  (`ModeChip` in `ui/components/Glass.kt`).
+- A **bigger, friendlier shutter** area with a gradient ring that becomes a
+  record button in video mode.
+- **Smoother animated transitions** (`AnimatedVisibility` for the video panel,
+  the framing guide, the recording readout and the manual HUD).
+- A **refreshed Settings** screen built from titled glass groups.
+
+The screens live in `ui/screens/` (Viewfinder, Gallery, Cameras, Settings) and
+the shared atoms in `ui/components/`.
+
+---
+
 ## 8. Building a signed AAB for Google Play
 
 ### 8a. Create an upload keystore (once)
@@ -376,6 +507,19 @@ an APK:
   mode are 100% on-device.
 - **Photos** are written to the app's private `files/gallery/` folder first, then
   optionally published to the device MediaStore (Pictures/FaceCam) on save.
+- **Videos** are recorded to the app cache, post-processed (look + caption +
+  slow motion), then copied into `files/gallery/<camera>/` and published to
+  MediaStore (Movies/FaceCam). Any `.srt` sidecar is written next to the clip.
+- **The camera look is never baked into the live video pipeline.** Recording is
+  plain MP4; the look is applied afterwards, frame by frame, by
+  `video/VideoEffectProcessor.kt` using the existing `AnalogEffects` /
+  `BeautyEffects` code. No EGL / OpenGL surface work is used anywhere.
+- **On-device ML** uses the ML Kit face-detection model **bundled in the APK**
+  (no download). Face detection only ever runs locally.
+- **Live captions** use Android's on-device `SpeechRecognizer`
+  (`EXTRA_PREFER_OFFLINE`). No network permission exists, so captioning is
+  strictly local. If no recognizer is present the toggle reports it is
+  unavailable and everything else keeps working.
 - **Settings** are stored in `SharedPreferences`.
 - **Beauty photos** are deliberately clean: no grain, leaks, vignette, frame,
   date stamp or branding band. The date-stamp / border / watermark settings only

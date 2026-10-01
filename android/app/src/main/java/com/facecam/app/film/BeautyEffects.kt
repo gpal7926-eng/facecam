@@ -43,6 +43,14 @@ object BeautyEffects {
     data class Options(
         val preset: FilmPreset,
         val beauty: BeautyParams = preset.beauty ?: BeautyParams(),
+        /**
+         * Optional feathered alpha mask (same size as the source, or scaled
+         * internally) from [com.facecam.app.ml.FaceMaskProvider]. Where the mask
+         * is opaque the skin smoothing runs at full strength; outside it a
+         * reduced amount is used. When null the pipeline falls back to its
+         * original global behaviour.
+         */
+        val faceMask: Bitmap? = null,
         val seed: Long = System.nanoTime()
     )
 
@@ -56,7 +64,7 @@ object BeautyEffects {
         bmp = applyExposure(bmp, b.exposure)
         bmp = applyToneCurve(bmp, b.contrast, b.saturation)
         bmp = applyHighlightRolloff(bmp)
-        bmp = applySkinSmoothing(bmp, b.smooth)
+        bmp = applySkinSmoothing(bmp, b.smooth, options.faceMask)
         bmp = applyGlow(bmp, b.glow)
         bmp = applySharpen(bmp, b.sharpen)
 
@@ -185,8 +193,14 @@ object BeautyEffects {
      * Blur a copy of the image, then blend it back per pixel weighted by the
      * local high-frequency detail. Flat regions (skin) get the blurred value,
      * while edges (where detail is high) keep the original sharp pixel.
+     *
+     * When [mask] is supplied (a feathered face mask) the smoothing runs at full
+     * strength inside the detected face and a reduced amount elsewhere, so the
+     * strongest effect lands on skin while eyes, brows and lips stay sharp (the
+     * edge term above already protects them). With no mask the original global
+     * behaviour is kept.
      */
-    private fun applySkinSmoothing(src: Bitmap, smooth: Float): Bitmap {
+    private fun applySkinSmoothing(src: Bitmap, smooth: Float, mask: Bitmap?): Bitmap {
         val strength = smooth.coerceIn(0f, 1f)
         val w = src.width
         val h = src.height
@@ -201,6 +215,15 @@ object BeautyEffects {
         // A small blur used to measure local high-frequency detail.
         val detailPx = blur3x3(base, w, h)
 
+        // Optional face mask, sampled as an alpha weight per pixel.
+        val maskPx: IntArray? = mask?.let {
+            val scaled = if (it.width == w && it.height == h) it
+            else Bitmap.createScaledBitmap(it, w, h, true)
+            val px = pixelsOf(scaled)
+            if (scaled !== it) scaled.recycle()
+            px
+        }
+
         val edgeThreshold = 16f
         val out = IntArray(w * h)
         for (i in out.indices) {
@@ -211,7 +234,11 @@ object BeautyEffects {
 
             // weight = strength on flat areas, 0 on strong edges.
             val edge = (detail / edgeThreshold).coerceIn(0f, 1f)
-            val weight = strength * (1f - edge)
+            var weight = strength * (1f - edge)
+            if (maskPx != null) {
+                val face = (comp(maskPx[i], 24) / 255f).coerceIn(0f, 1f)
+                weight *= (OUTSIDE_FACE_WEIGHT + (1f - OUTSIDE_FACE_WEIGHT) * face)
+            }
 
             val br = comp(blurPx[i], 16)
             val bg = comp(blurPx[i], 8)
@@ -351,4 +378,9 @@ object BeautyEffects {
     private fun comp(color: Int, shift: Int): Int = (color shr shift) and 0xFF
 
     private fun clamp(v: Int): Int = min(255, max(0, v))
+
+    companion object {
+        /** Smoothing strength kept OUTSIDE the detected face (relative to full). */
+        private const val OUTSIDE_FACE_WEIGHT = 0.35f
+    }
 }

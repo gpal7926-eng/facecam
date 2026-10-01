@@ -46,6 +46,39 @@ class GalleryRepository(private val context: Context) {
         )
     }
 
+    /**
+     * Copy a finished video clip into the in-app gallery and return its
+     * [GalleryPhoto] entry. The clip is copied (not moved) so the caller keeps
+     * its cache file until it chooses to delete it.
+     */
+    suspend fun saveVideo(
+        source: File,
+        cameraId: String,
+        cameraName: String
+    ): GalleryPhoto? = withContext(Dispatchers.IO) {
+        try {
+            val dir = File(rootDir, cameraId).apply { if (!exists()) mkdirs() }
+            val timestamp = System.currentTimeMillis()
+            val id = "${cameraId}_$timestamp.mp4"
+            val file = File(dir, id)
+            source.inputStream().use { input ->
+                file.outputStream().use { out -> input.copyTo(out) }
+            }
+            metaCache[id] = CameraMeta(cameraId, cameraName)
+            GalleryPhoto(
+                id = id,
+                file = file,
+                cameraId = cameraId,
+                cameraName = cameraName,
+                timestamp = timestamp,
+                isVideo = true
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "saveVideo failed", t)
+            null
+        }
+    }
+
     /** All photos, newest first. */
     suspend fun all(): List<GalleryPhoto> = withContext(Dispatchers.IO) {
         val result = mutableListOf<GalleryPhoto>()
@@ -54,7 +87,7 @@ class GalleryRepository(private val context: Context) {
             if (!cameraDir.isDirectory) return@forEach
             val cameraId = cameraDir.name
             cameraDir.listFiles()?.forEach { f ->
-                if (f.isFile && f.name.endsWith(".jpg")) {
+                if (f.isFile && (f.name.endsWith(".jpg") || f.name.endsWith(".mp4"))) {
                     val meta = metaCache[f.name]
                     result.add(
                         GalleryPhoto(
@@ -62,7 +95,8 @@ class GalleryRepository(private val context: Context) {
                             file = f,
                             cameraId = meta?.cameraId ?: cameraId,
                             cameraName = meta?.cameraName ?: cameraId,
-                            timestamp = f.lastModified()
+                            timestamp = f.lastModified(),
+                            isVideo = f.name.endsWith(".mp4")
                         )
                     )
                 }

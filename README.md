@@ -40,8 +40,15 @@ frame — a clean photo.
 
 ## Features
 
-- **Two families, one app** — a segmented Vintage / Beauty picker so you can jump between a
-  film look and a clean enhance.
+- **Photo and Video modes** — flip between a still camera and a video camera with one chip.
+- **Video recording with the look baked in** — the vintage film or beauty look (colour curve,
+  grain, vignette, frame) and your caption are rendered into every recorded frame, so the
+  saved clip already has the look. Records the microphone too when permission is granted.
+- **Slow motion** — record, then bake a 0.5x or 0.25x slow-motion version, or change playback
+  speed while viewing. The slow-mo export is a real re-timed file, not just a preview.
+- **Subtitles** — type a caption line and it is burned onto the video; optional live
+  captions use the browser's on-device speech recognition where available.
+- **Two families, one app** — a Vintage / Beauty pill switch with a horizontal camera strip.
 - **Randomised analog effects** on vintage shots: colour curve, film grain, dust and
   scratches, light leaks, vignette, frames, and an optional burned-in date stamp.
 - **Realistic film pipeline** — a proper per-channel tone curve (lift / gamma / gain + warmth
@@ -92,8 +99,16 @@ built-in scene that runs through the exact same shutter → pipeline → save �
 Screenshots: [`docs/screenshot-onboarding.jpg`](docs/screenshot-onboarding.jpg),
 [`docs/screenshot-cameras.jpg`](docs/screenshot-cameras.jpg),
 [`docs/screenshot-beauty.jpg`](docs/screenshot-beauty.jpg),
+[`docs/screenshot-video.jpg`](docs/screenshot-video.jpg),
 [`docs/screenshot-result.jpg`](docs/screenshot-result.jpg),
 [`docs/screenshot-pro.jpg`](docs/screenshot-pro.jpg).
+
+### Camera permissions
+
+A camera (and, for video audio, a microphone) needs a **secure context**. `localhost` and
+`https://` count; opening the file directly from disk does **not**, and the browser will
+block the camera entirely. The app detects this and tells you so, with a link to the live
+version.
 
 ## Build the Android app
 

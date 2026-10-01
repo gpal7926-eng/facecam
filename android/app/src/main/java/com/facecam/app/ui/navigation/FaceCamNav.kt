@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.facecam.app.ui.FaceCamViewModel
+import com.facecam.app.ui.components.HomeTab
 import com.facecam.app.ui.screens.CamerasScreen
 import com.facecam.app.ui.screens.DoubleExposureScreen
 import com.facecam.app.ui.screens.GalleryScreen
@@ -70,21 +71,24 @@ fun FaceCamNav(
                 onOpenCameras = { navController.navigate(Routes.CAMERAS) },
                 onOpenGallery = { navController.navigate(Routes.GALLERY) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenDoubleExposure = { navController.navigate(Routes.DOUBLE_EXPOSURE) }
+                onOpenDoubleExposure = { navController.navigate(Routes.DOUBLE_EXPOSURE) },
+                onNavigate = { tab -> navigateToTab(navController, tab) }
             )
         }
 
         composable(Routes.CAMERAS) {
             CamerasScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigate = { tab -> navigateToTab(navController, tab) }
             )
         }
 
         composable(Routes.GALLERY) {
             GalleryScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigate = { tab -> navigateToTab(navController, tab) }
             )
         }
 
@@ -101,5 +105,18 @@ fun FaceCamNav(
                 onBack = { navController.popBackStack() }
             )
         }
+    }
+}
+
+/** Switch between the three top-level bottom-bar destinations. */
+private fun navigateToTab(navController: NavHostController, tab: HomeTab) {
+    val route = when (tab) {
+        HomeTab.CAMERA -> Routes.VIEWFINDER
+        HomeTab.GALLERY -> Routes.GALLERY
+        HomeTab.MODES -> Routes.CAMERAS
+    }
+    navController.navigate(route) {
+        launchSingleTop = true
+        popUpTo(Routes.VIEWFINDER) { inclusive = route == Routes.VIEWFINDER }
     }
 }

@@ -12,13 +12,14 @@ import java.io.File
 object ShareHelper {
 
     fun share(context: Context, photo: GalleryPhoto, chooserTitle: String = "Share photo") {
+        val mime = if (photo.isVideo) "video/mp4" else "image/jpeg"
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             photo.file
         )
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/jpeg"
+            type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

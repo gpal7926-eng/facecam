@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a0a0c">
-<meta name="description" content="FaceCam — vintage film cameras and a beauty camera. Free, offline, no ads.">
-<title>FaceCam — Vintage &amp; Beauty Camera</title>
+<meta name="theme-color" content="#08080b">
+<meta name="description" content="FaceCam — vintage film, beauty, video, slow motion and subtitles. Free, offline, no ads.">
+<title>FaceCam — Vintage, Beauty &amp; Video</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
   <section class="screen" id="screen-splash">
     <div class="splash-inner">
       <div class="logo">FaceCam</div>
-      <div class="logo-sub">Purani film, aur ek clean beauty shot.</div>
+      <div class="logo-sub">Vintage. Beauty. Video.</div>
       <div class="film-strip"></div>
     </div>
   </section>
@@ -24,15 +24,16 @@
   <section class="screen" id="screen-onboarding">
     <div class="onb">
       <div class="logo small">FaceCam</div>
-      <p class="onb-lead">Vintage film cameras aur ek beauty camera &mdash; dono ek app mein. Koi slider nahi, bas click.</p>
+      <p class="onb-lead">Reels, selfies aur photos ke liye ek hi camera — vintage film looks, clean beauty, video, slow motion aur subtitles.</p>
       <ul class="onb-list">
-        <li>13 vintage film cameras</li>
-        <li>4 beauty looks &mdash; clean, bright, warm, portrait</li>
-        <li>Random grain, dust, light leaks, vignette</li>
+        <li>13 vintage film + 4 beauty cameras</li>
+        <li>Video recording, look baked in</li>
+        <li>Slow motion 0.5x / 0.25x</li>
+        <li>Subtitles aur live captions</li>
         <li>100% free, no ads, offline</li>
       </ul>
       <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
-      <p class="fine">Camera permission chahiye. Koi data upload nahi hota.</p>
+      <p class="fine">Camera aur mic permission chahiye. Koi data upload nahi hota.</p>
     </div>
   </section>
 
@@ -91,23 +92,53 @@
         </div>
       </div>
 
+      <div class="rec-badge" id="rec-badge"><span class="dot"></span>REC <b id="rec-time">0:00</b></div>
+
+      <div class="vf-rail">
+        <button class="icon-btn" id="btn-flash" title="Flash">&#9889;</button>
+        <button class="icon-btn" id="btn-timer" title="Self-timer">&#8986;</button>
+        <button class="icon-btn" id="btn-double" title="Double exposure">2x</button>
+        <button class="icon-btn" id="btn-import" title="Import a photo">&#8681;</button>
+      </div>
+
       <div class="vf-bottom">
-        <div class="vf-row small-row">
-          <button class="icon-btn" id="btn-gallery" title="Gallery">&#9635;</button>
-          <button class="icon-btn" id="btn-picker" title="Cameras">&#9788;</button>
-          <button class="icon-btn" id="btn-cameras" title="All cameras">&#9638;</button>
+        <div class="family-row" id="family-row">
+          <button class="fam active" data-group="vintage">Vintage</button>
+          <button class="fam" data-group="beauty">Beauty</button>
         </div>
-        <div class="vf-row main-row">
-          <button class="icon-btn" id="btn-timer" title="Self-timer">&#8986;</button>
-          <button class="icon-btn" id="btn-flash" title="Flash">&#9889;</button>
+
+        <div class="cam-strip" id="cam-strip"></div>
+
+        <div class="mode-row" id="mode-row">
+          <button class="mode-chip active" data-mode="photo">Photo</button>
+          <button class="mode-chip" data-mode="video">Video</button>
+        </div>
+
+        <div class="video-extras" id="video-extras">
+          <input id="caption-input" class="caption-input" type="text" maxlength="80"
+                 placeholder="Caption / subtitle line...">
+          <div class="video-opts">
+            <div class="speed-row" id="speed-row">
+              <button class="speed active" data-speed="1">1x</button>
+              <button class="speed" data-speed="0.5">0.5x</button>
+              <button class="speed" data-speed="0.25">0.25x</button>
+            </div>
+            <label class="live-cap"><input type="checkbox" id="live-captions"> Live captions</label>
+          </div>
+        </div>
+
+        <div class="shutter-row">
+          <button class="mini-thumb" id="btn-gallery-mini" title="Gallery"><span></span></button>
           <button class="shutter" id="btn-shutter" title="Shutter"><span></span></button>
-          <button class="icon-btn" id="btn-double" title="Double exposure">2x</button>
-          <button class="icon-btn" id="btn-switch" title="Flip camera">&#8646;</button>
-        </div>
-        <div class="vf-row import-row">
-          <button class="link-btn" id="btn-import">Import a photo</button>
+          <button class="icon-btn flip" id="btn-switch" title="Flip camera">&#8646;</button>
         </div>
       </div>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn active" data-nav="camera"><span>&#9673;</span>Camera</button>
+        <button class="nav-btn" data-nav="gallery"><span>&#9635;</span>Gallery</button>
+        <button class="nav-btn" data-nav="modes"><span>&#9638;</span>Modes</button>
+      </nav>
     </div>
   </section>
 
@@ -123,6 +154,7 @@
   <section class="screen" id="screen-result">
     <div class="result-wrap">
       <img id="result-img" alt="Result">
+      <video id="result-video" class="result-video" playsinline controls style="display:none"></video>
       <p class="result-cam" id="result-cam"></p>
       <div class="result-actions">
         <button class="btn" id="result-retake">Retake</button>
@@ -142,15 +174,15 @@
     </div>
     <div class="screen-body">
       <div class="gallery-grid" id="gallery-grid"></div>
-      <p id="gallery-empty" class="empty">Abhi koi photo nahi. Camera se pehli shot lein.</p>
+      <p id="gallery-empty" class="empty">Abhi kuch nahi. Camera se pehli shot ya clip banayein.</p>
     </div>
   </section>
 
-  <!-- Cameras browser -->
+  <!-- Cameras / Modes browser -->
   <section class="screen" id="screen-shop">
     <div class="topbar">
       <button class="icon-btn" data-back="viewfinder">&#8592;</button>
-      <h1>Cameras</h1>
+      <h1>Modes</h1>
       <span></span>
     </div>
     <div class="screen-body">
@@ -183,25 +215,17 @@
     </div>
   </section>
 
-  <!-- Camera picker sheet -->
-  <div class="sheet" id="sheet-picker">
-    <div class="sheet-backdrop"></div>
-    <div class="sheet-panel">
-      <div class="sheet-head">
-        <h2>Cameras</h2>
-        <button class="icon-btn" data-close-sheet="sheet-picker">&#10005;</button>
-      </div>
-      <div class="tabs" id="picker-tabs">
-        <button class="tab" data-group="beauty">Beauty</button>
-        <button class="tab active" data-group="vintage">Vintage</button>
-      </div>
-      <div class="picker-list" id="picker-list"></div>
-    </div>
-  </div>
-
-  <!-- Photo viewer -->
+  <!-- Viewer -->
   <div class="viewer" id="viewer">
     <img id="viewer-img" alt="Photo">
+    <video id="viewer-video" class="viewer-video" playsinline controls style="display:none"></video>
+    <div class="viewer-speed" id="viewer-speed" style="display:none">
+      <span>Speed</span>
+      <button class="speed active" data-vspeed="1">1x</button>
+      <button class="speed" data-vspeed="0.5">0.5x</button>
+      <button class="speed" data-vspeed="0.25">0.25x</button>
+      <button class="speed-bake" id="speed-bake">Save slow-mo</button>
+    </div>
     <div class="viewer-actions">
       <button class="btn" id="viewer-close">Close</button>
       <button class="btn" id="viewer-share">Share</button>
@@ -215,6 +239,7 @@
 
 <script src="js/cameras.js"></script>
 <script src="js/effects.js"></script>
+<script src="js/video.js"></script>
 <script src="js/pro.js"></script>
 <script src="js/app.js"></script>
 </body>
