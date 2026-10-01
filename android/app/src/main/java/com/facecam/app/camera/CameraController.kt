@@ -24,6 +24,8 @@ import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -43,6 +45,16 @@ class CameraController(private val context: Context) {
     private var cameraInfo: CameraInfo? = null
     private var lensFacing: LensFacing = LensFacing.BACK
 
+    /**
+     * Single background thread for [ImageAnalysis]. Running the analyzers (ML Kit
+     * face detection, the PRO histogram / overlays) off the main thread keeps the
+     * preview smooth and the UI responsive. Created lazily, released in [unbind].
+     */
+    private var analysisExecutor: ExecutorService? = null
+
+    private fun ensureAnalysisExecutor(): ExecutorService =
+        analysisExecutor ?: Executors.newSingleThreadExecutor().also { analysisExecutor = it }
+
     /** The bound [Camera], or null before [bind] completes. Used by PRO mode. */
     fun currentCamera(): Camera? = camera
 
@@ -58,7 +70,7 @@ class CameraController(private val context: Context) {
     fun setFrameAnalyzer(analyzer: ImageAnalysis.Analyzer?) {
         val analysis = imageAnalysis ?: return
         val effective = analyzer ?: ImageAnalysis.Analyzer { it.close() }
-        analysis.setAnalyzer(ContextCompat.getMainExecutor(context), effective)
+        analysis.setAnalyzer(ensureAnalysisExecutor(), effective)
     }
 
     /** Bind the preview to the given [previewView] and prepare the capture use cases. */
@@ -85,7 +97,7 @@ class CameraController(private val context: Context) {
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
-                    .also { it.setAnalyzer(ContextCompat.getMainExecutor(context)) { proxy -> proxy.close() } }
+                    .also { it.setAnalyzer(ensureAnalysisExecutor()) { proxy -> proxy.close() } }
 
                 val selector = CameraSelector.Builder()
                     .requireLensFacing(
@@ -185,7 +197,11 @@ class CameraController(private val context: Context) {
     }
 
     private fun ImageProxy.toBitmap(): Bitmap {
-        val buffer: ByteBuffer = planes[0].buffer
+        val plane = planes.firstOrNull()
+            ?: throw IllegalStateException("Capture had no image plane")
+        val buffer: ByteBuffer = plane.buffer
+        // Rewind first: the plane buffer may not be positioned at its start.
+        buffer.rewind()
         val bytes = ByteArray(buffer.remaining())
         buffer.get(bytes)
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -205,6 +221,8 @@ class CameraController(private val context: Context) {
         cameraProvider?.unbindAll()
         camera = null
         cameraInfo = null
+        analysisExecutor?.shutdownNow()
+        analysisExecutor = null
     }
 
     /** Persist a bitmap to a temp file (used when a FileProvider Uri is needed). */

@@ -101,6 +101,8 @@ object VideoEffectProcessor {
             val encoder = Mp4FrameEncoder(output, outW, outH, frameRate, bitRate)
             encoder.start()
 
+            // Reuse a single caption renderer instead of allocating one per frame.
+            val captionRenderer = SubtitleOverlay()
             var t = 0L
             var frameIndex = 0L
             while (t < durationMs) {
@@ -122,7 +124,7 @@ object VideoEffectProcessor {
                 frame = applyLook(frame, preset, scaledMask, border, dateText, branding)
                 if (frame !== preLook) preLook.recycle()
                 if (!caption.isNullOrBlank()) {
-                    frame = SubtitleOverlay().drawCaption(frame, caption)
+                    frame = captionRenderer.drawCaption(frame, caption)
                 }
                 val ptsUs = frameIndex * (1_000_000L / frameRate)
                 encoder.encodeFrame(frame, ptsUs)

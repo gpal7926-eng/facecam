@@ -15,21 +15,16 @@
         android:name="android.hardware.microphone"
         android:required="false" />
 
-    <!-- Saving photos and videos to the shared media store -->
+    <!-- Saving photos and videos to the shared media store. On API 29+ scoped
+         storage means no storage permission is needed to insert our OWN media;
+         WRITE_EXTERNAL_STORAGE is only required on API 24-28. FaceCam never
+         reads other apps' media and posts no notifications, so no
+         READ_MEDIA_* / READ_EXTERNAL_STORAGE / POST_NOTIFICATIONS permission is
+         requested. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"
         tools:ignore="ScopedStorage" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_VIDEO" />
-
-    <!-- Runtime notification permission for the "developing" progress notice -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- On API 30+ an app must declare the services it queries. Live captions use
          the on-device SpeechRecognizer; this makes the recognition service visible

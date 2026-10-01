@@ -52,7 +52,7 @@
     <string name="settings_shutter_sound_sub">Play a shutter click when you take a photo</string>
     <string name="settings_default_camera">Default camera</string>
     <string name="settings_privacy">Privacy policy</string>
-    <string name="settings_version">FaceCam v2.0.0 - free, offline, all data stays on your device.</string>
+    <string name="settings_version">FaceCam v3.0.0 - free, offline, all data stays on your device.</string>
 
     <!-- Manual mode (Blackmagic-style shooting HUD) -->
     <string name="viewfinder_manual">MANUAL</string>

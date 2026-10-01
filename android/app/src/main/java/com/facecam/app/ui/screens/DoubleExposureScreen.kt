@@ -63,6 +63,14 @@ fun DoubleExposureScreen(
         )
     }
 
+    // Release the camera binding and any half-finished first shot when leaving.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            cameraController.unbind()
+            firstShot?.let { if (!it.isRecycled) it.recycle() }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 

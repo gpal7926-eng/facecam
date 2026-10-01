@@ -63,12 +63,27 @@ internal class Mp4FrameEncoder(
         if (frame !== bitmap) frame.recycle()
 
         drain(false)
-        val inIndex = codec.dequeueInputBuffer(TIMEOUT_US)
+        // Retry a few times when the encoder has no free input buffer yet, rather
+        // than silently dropping the frame.
+        var inIndex = -1
+        var attempts = 0
+        while (inIndex < 0 && attempts < MAX_QUEUE_RETRIES) {
+            inIndex = codec.dequeueInputBuffer(TIMEOUT_US)
+            if (inIndex < 0) {
+                attempts++
+                drain(false)
+            }
+        }
         if (inIndex >= 0) {
-            val buffer: ByteBuffer = codec.getInputBuffer(inIndex) ?: return
-            buffer.clear()
-            buffer.put(yuv)
-            codec.queueInputBuffer(inIndex, 0, yuv.size, ptsUs, 0)
+            val buffer: ByteBuffer? = codec.getInputBuffer(inIndex)
+            if (buffer != null) {
+                buffer.clear()
+                buffer.put(yuv)
+                codec.queueInputBuffer(inIndex, 0, yuv.size, ptsUs, 0)
+            } else {
+                // Release the buffer so it is not leaked inside the codec.
+                codec.queueInputBuffer(inIndex, 0, 0, ptsUs, 0)
+            }
         }
         drain(false)
     }
@@ -180,5 +195,8 @@ internal class Mp4FrameEncoder(
     companion object {
         private const val MIME = "video/avc"
         private const val TIMEOUT_US = 10_000L
+
+        /** How many times to wait for a free input buffer before giving up on a frame. */
+        private const val MAX_QUEUE_RETRIES = 20
     }
 }

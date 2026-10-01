@@ -43,18 +43,24 @@ object MediaStoreSaver {
                 }
 
                 val uri = resolver.insert(collection, values) ?: return@withContext null
-                resolver.openOutputStream(uri)?.use { out ->
-                    photo.file.inputStream().use { input ->
-                        input.copyTo(out)
-                    }
-                }
+                try {
+                    resolver.openOutputStream(uri)?.use { out ->
+                        photo.file.inputStream().use { input ->
+                            input.copyTo(out)
+                        }
+                    } ?: throw IllegalStateException("Could not open MediaStore output stream")
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.clear()
-                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    resolver.update(uri, values, null, null)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        values.clear()
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                        resolver.update(uri, values, null, null)
+                    }
+                    uri
+                } catch (t: Throwable) {
+                    // Never leave a broken / half-written entry in the gallery.
+                    runCatching { resolver.delete(uri, null, null) }
+                    throw t
                 }
-                uri
             } catch (t: Throwable) {
                 Log.e(TAG, "MediaStore save failed", t)
                 null
@@ -91,16 +97,22 @@ object MediaStoreSaver {
                 }
 
                 val uri = resolver.insert(collection, values) ?: return@withContext null
-                resolver.openOutputStream(uri)?.use { out ->
-                    photo.file.inputStream().use { input -> input.copyTo(out) }
-                }
+                try {
+                    resolver.openOutputStream(uri)?.use { out ->
+                        photo.file.inputStream().use { input -> input.copyTo(out) }
+                    } ?: throw IllegalStateException("Could not open MediaStore output stream")
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.clear()
-                    values.put(MediaStore.Video.Media.IS_PENDING, 0)
-                    resolver.update(uri, values, null, null)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        values.clear()
+                        values.put(MediaStore.Video.Media.IS_PENDING, 0)
+                        resolver.update(uri, values, null, null)
+                    }
+                    uri
+                } catch (t: Throwable) {
+                    // Never leave a broken / half-written entry in the gallery.
+                    runCatching { resolver.delete(uri, null, null) }
+                    throw t
                 }
-                uri
             } catch (t: Throwable) {
                 Log.e(TAG, "MediaStore video save failed", t)
                 null

@@ -1,10 +1,12 @@
 package com.facecam.app.ui.screens
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.RectF
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -162,10 +164,23 @@ fun ViewfinderScreen(
     val liveCaptions = remember { LiveCaptionController(context) }
 
     // Runtime microphone permission (audio in video + on-device live captions).
+    // Live captions must NEVER start before RECORD_AUDIO is actually granted, so
+    // the grant callback is what starts them - not the request itself.
+    var pendingCaptionStart by remember { mutableStateOf(false) }
     val audioPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (!granted) viewModel.notify("Microphone permission is needed for audio and live captions")
+        if (granted) {
+            if (pendingCaptionStart) {
+                pendingCaptionStart = false
+                liveCaptions.start()
+            }
+        } else {
+            pendingCaptionStart = false
+            // Keep the feature disabled and tell the user why.
+            viewModel.setLiveCaptions(false)
+            viewModel.notify("Microphone permission is needed for audio and live captions")
+        }
     }
 
     LaunchedEffect(cameraState.lensFacing) {
@@ -181,7 +196,12 @@ fun ViewfinderScreen(
         cameraController.setFlash(cameraState.flash)
     }
     LaunchedEffect(cameraState.cameraReady) {
-        if (cameraState.cameraReady) viewModel.setMaxFps(cameraController.highestSupportedFps())
+        if (cameraState.cameraReady) {
+            viewModel.setMaxFps(cameraController.highestSupportedFps())
+            // A fresh bind (e.g. after a lens switch) recreates the capture use
+            // case, so re-apply the currently selected flash mode.
+            cameraController.setFlash(cameraState.flash)
+        }
     }
 
     // Attach the manual controller once the camera is bound, then push state to it.
@@ -229,9 +249,19 @@ fun ViewfinderScreen(
         if (cameraState.liveCaptions) {
             liveCaptions.onLine = { text, isFinal -> viewModel.onLiveCaption(text, isFinal) }
             liveCaptions.onError = { viewModel.setLiveCaptions(false) }
-            audioPermission.launch(Manifest.permission.RECORD_AUDIO)
-            liveCaptions.start()
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                liveCaptions.start()
+            } else {
+                // Ask first; only start once the grant callback fires.
+                pendingCaptionStart = true
+                audioPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }
         } else {
+            pendingCaptionStart = false
             liveCaptions.stop()
         }
     }
@@ -650,16 +680,26 @@ fun ViewfinderScreen(
                             }
                         } else {
                             scope.launch {
-                                if (cameraState.selfTimer.seconds > 0) {
-                                    for (s in cameraState.selfTimer.seconds downTo 1) {
-                                        countdown = s
-                                        delay(1000)
+                                viewModel.setCapturing(true)
+                                try {
+                                    if (cameraState.selfTimer.seconds > 0) {
+                                        for (s in cameraState.selfTimer.seconds downTo 1) {
+                                            countdown = s
+                                            delay(1000)
+                                        }
+                                        countdown = 0
                                     }
+                                    val bmp = runCatching { cameraController.capture() }.getOrNull()
+                                    val name = preset?.name
+                                    if (bmp != null && name != null) {
+                                        viewModel.developCapture(bmp, name)
+                                    } else if (bmp != null) {
+                                        // No camera selected: never leak the capture.
+                                        bmp.recycle()
+                                    }
+                                } finally {
                                     countdown = 0
-                                }
-                                val bmp = runCatching { cameraController.capture() }.getOrNull()
-                                if (bmp != null && preset != null) {
-                                    viewModel.developCapture(bmp, preset!!.name)
+                                    viewModel.setCapturing(false)
                                 }
                             }
                         }

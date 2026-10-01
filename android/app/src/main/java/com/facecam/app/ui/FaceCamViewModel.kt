@@ -3,6 +3,7 @@ package com.facecam.app.ui
 import android.app.Activity
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.facecam.app.FaceCamApp
@@ -154,6 +155,11 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
         _cameraState.value = _cameraState.value.copy(cameraReady = ready)
     }
 
+    /** Mark the still-capture pipeline busy so the shutter cannot be re-triggered. */
+    fun setCapturing(capturing: Boolean) {
+        _cameraState.value = _cameraState.value.copy(isCapturing = capturing)
+    }
+
     // ------------------------------------------------------------------
     // Photo / video mode
     // ------------------------------------------------------------------
@@ -248,56 +254,67 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             _cameraState.value = _cameraState.value.copy(isDeveloping = !skipWait)
-            if (!skipWait) {
-                developingController.develop(skip = false) { p ->
-                    _cameraState.value = _cameraState.value.copy(developProgress = p)
+            try {
+                if (!skipWait) {
+                    developingController.develop(skip = false) { p ->
+                        _cameraState.value = _cameraState.value.copy(developProgress = p)
+                    }
                 }
-            }
 
-            val developed: Bitmap = if (preset.isBeauty) {
-                val faceMask = runCatching { FaceMaskProvider.detect(source) }.getOrNull()
-                val out = BeautyEffects.develop(
-                    source = source,
-                    options = BeautyEffects.Options(preset = preset, faceMask = faceMask?.mask)
-                )
-                faceMask?.mask?.recycle()
-                out
-            } else {
-                val dateStampOn = settingsStore.dateStamp && preset.dateStamp
-                val borderOn = settingsStore.border
-                val brandingOn = settingsStore.branding
-
-                val dateText = if (dateStampOn) {
-                    val c = Calendar.getInstance()
-                    DateStampRenderer.formatDate(
-                        c.get(Calendar.YEAR),
-                        c.get(Calendar.MONTH) + 1,
-                        c.get(Calendar.DAY_OF_MONTH)
+                val developed: Bitmap = if (preset.isBeauty) {
+                    val faceMask = runCatching { FaceMaskProvider.detect(source) }.getOrNull()
+                    val out = BeautyEffects.develop(
+                        source = source,
+                        options = BeautyEffects.Options(preset = preset, faceMask = faceMask?.mask)
                     )
+                    faceMask?.mask?.recycle()
+                    out
                 } else {
-                    null
+                    val dateStampOn = settingsStore.dateStamp && preset.dateStamp
+                    val borderOn = settingsStore.border
+                    val brandingOn = settingsStore.branding
+
+                    val dateText = if (dateStampOn) {
+                        val c = Calendar.getInstance()
+                        DateStampRenderer.formatDate(
+                            c.get(Calendar.YEAR),
+                            c.get(Calendar.MONTH) + 1,
+                            c.get(Calendar.DAY_OF_MONTH)
+                        )
+                    } else {
+                        null
+                    }
+
+                    AnalogEffects.develop(
+                        source = source,
+                        options = AnalogEffects.Options(
+                            preset = preset,
+                            border = borderOn,
+                            dateStamp = dateStampOn,
+                            branding = brandingOn
+                        ),
+                        applyFrame = { bmp -> OverlayRenderer.drawFrame(bmp, preset.frame) },
+                        dateStampText = dateText
+                    )
                 }
 
-                AnalogEffects.develop(
-                    source = source,
-                    options = AnalogEffects.Options(
-                        preset = preset,
-                        border = borderOn,
-                        dateStamp = dateStampOn,
-                        branding = brandingOn
-                    ),
-                    applyFrame = { bmp -> OverlayRenderer.drawFrame(bmp, preset.frame) },
-                    dateStampText = dateText
+                val photo = galleryRepository.save(developed, preset.id, cameraName)
+                developed.recycle()
+                _lastDeveloped.value = photo
+                refreshGallery()
+                settingsStore.saveCount = settingsStore.saveCount + 1
+            } catch (t: Throwable) {
+                Log.e(TAG, "developCapture failed", t)
+                _message.value = "Could not develop the photo"
+            } finally {
+                // The captured still is no longer needed once the pipeline has
+                // produced its own (new) bitmap, so always release it.
+                if (!source.isRecycled) source.recycle()
+                _cameraState.value = _cameraState.value.copy(
+                    isDeveloping = false,
+                    developProgress = 0f
                 )
             }
-
-            val photo = galleryRepository.save(developed, preset.id, cameraName)
-            developed.recycle()
-            _lastDeveloped.value = photo
-            _cameraState.value = _cameraState.value.copy(isDeveloping = false, developProgress = 0f)
-            refreshGallery()
-
-            settingsStore.saveCount = settingsStore.saveCount + 1
         }
     }
 
@@ -316,68 +333,72 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
             _cameraState.value = _cameraState.value.copy(processingVideo = true, videoProgress = 0f)
             val cache = app.cacheDir
             val stamp = System.currentTimeMillis()
-
-            val faceMask = if (preset.isBeauty) {
-                runCatching { FaceMaskProvider.detectFromVideo(source) }.getOrNull()
-            } else {
-                null
-            }
-            val caption = subtitleOverlay.typedCaption.takeIf { it.isNotBlank() }
-
             val effFile = File(cache, "facecam_effect_$stamp.mp4")
-            val effResult = VideoEffectProcessor.process(
-                input = source,
-                output = effFile,
-                preset = preset,
-                faceMask = faceMask?.mask,
-                caption = caption,
-                border = settingsStore.border,
-                dateStamp = settingsStore.dateStamp && preset.dateStamp,
-                branding = settingsStore.branding,
-                onProgress = { p ->
-                    _cameraState.value = _cameraState.value.copy(videoProgress = p * 0.7f)
-                }
-            )
-            faceMask?.mask?.recycle()
-
             val slowFile = File(cache, "facecam_slow_$stamp.mp4")
-            val slowResult = SlowMotionExporter.export(
-                input = effResult.file,
-                output = slowFile,
-                speed = _cameraState.value.videoSpeed,
-                onProgress = { p ->
-                    _cameraState.value = _cameraState.value.copy(videoProgress = 0.7f + p * 0.3f)
+            try {
+                val faceMask = if (preset.isBeauty) {
+                    runCatching { FaceMaskProvider.detectFromVideo(source) }.getOrNull()
+                } else {
+                    null
                 }
-            )
+                val caption = subtitleOverlay.typedCaption.takeIf { it.isNotBlank() }
 
-            val photo = galleryRepository.saveVideo(slowResult.file, preset.id, cameraName)
-            if (photo != null) {
-                MediaStoreSaver.saveVideo(app, photo)
-                if (subtitleOverlay.allCues().isNotEmpty()) {
-                    val srt = File(photo.file.parentFile, photo.file.nameWithoutExtension + ".srt")
-                    subtitleOverlay.writeSrt(srt)
+                val effResult = VideoEffectProcessor.process(
+                    input = source,
+                    output = effFile,
+                    preset = preset,
+                    faceMask = faceMask?.mask,
+                    caption = caption,
+                    border = settingsStore.border,
+                    dateStamp = settingsStore.dateStamp && preset.dateStamp,
+                    branding = settingsStore.branding,
+                    onProgress = { p ->
+                        _cameraState.value = _cameraState.value.copy(videoProgress = p * 0.7f)
+                    }
+                )
+                faceMask?.mask?.recycle()
+
+                val slowResult = SlowMotionExporter.export(
+                    input = effResult.file,
+                    output = slowFile,
+                    speed = _cameraState.value.videoSpeed,
+                    onProgress = { p ->
+                        _cameraState.value = _cameraState.value.copy(videoProgress = 0.7f + p * 0.3f)
+                    }
+                )
+
+                val photo = galleryRepository.saveVideo(slowResult.file, preset.id, cameraName)
+                if (photo != null) {
+                    MediaStoreSaver.saveVideo(app, photo)
+                    if (subtitleOverlay.allCues().isNotEmpty()) {
+                        val srt = File(photo.file.parentFile, photo.file.nameWithoutExtension + ".srt")
+                        subtitleOverlay.writeSrt(srt)
+                    }
+                    _lastDeveloped.value = photo
+                    _message.value = buildString {
+                        append(slowResult.note)
+                        append(" - ")
+                        append(if (effResult.lookBaked) "look applied" else effResult.note)
+                    }
+                    settingsStore.saveCount = settingsStore.saveCount + 1
+                } else {
+                    _message.value = "Could not save video"
                 }
-                _lastDeveloped.value = photo
-                _message.value = buildString {
-                    append(slowResult.note)
-                    append(" - ")
-                    append(if (effResult.lookBaked) "look applied" else effResult.note)
-                }
-                settingsStore.saveCount = settingsStore.saveCount + 1
-            } else {
-                _message.value = "Could not save video"
+            } catch (t: Throwable) {
+                Log.e(TAG, "finishVideo failed", t)
+                _message.value = "Could not finish the video"
+            } finally {
+                runCatching { effFile.delete() }
+                runCatching { slowFile.delete() }
+                runCatching { source.delete() }
+                subtitleOverlay.clear()
+                _cameraState.value = _cameraState.value.copy(
+                    processingVideo = false,
+                    videoProgress = 0f,
+                    typedCaption = ""
+                )
+                refreshGallery()
             }
-
-            runCatching { effFile.delete() }
-            runCatching { slowFile.delete() }
-            runCatching { source.delete() }
-            subtitleOverlay.clear()
-            _cameraState.value = _cameraState.value.copy(
-                processingVideo = false,
-                videoProgress = 0f,
-                typedCaption = ""
-            )
-            refreshGallery()
         }
     }
 
@@ -389,13 +410,16 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun completeDoubleExposure(overlay: Bitmap, cameraName: String) {
-        val base = pendingDoubleExposureBase ?: overlay
+        val base = pendingDoubleExposureBase
+        pendingDoubleExposureBase = null
         val merged = AnalogEffects.doubleExpose(
-            base,
+            base ?: overlay,
             overlay,
             android.graphics.PorterDuff.Mode.SCREEN
         )
-        pendingDoubleExposureBase = null
+        // The two source shots are no longer needed once they are merged.
+        if (base != null && base !== merged && !base.isRecycled) base.recycle()
+        if (overlay !== merged && !overlay.isRecycled) overlay.recycle()
         developCapture(merged, cameraName)
     }
 
@@ -432,5 +456,9 @@ class FaceCamViewModel(app: Application) : AndroidViewModel(app) {
 
     fun consumeMessage() {
         _message.value = null
+    }
+
+    companion object {
+        private const val TAG = "FaceCamViewModel"
     }
 }

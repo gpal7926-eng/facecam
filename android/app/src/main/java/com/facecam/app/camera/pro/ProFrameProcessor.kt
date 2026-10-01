@@ -72,11 +72,11 @@ class ProFrameProcessor : ImageAnalysis.Analyzer {
                     OverlayMode.FALSE_COLOR -> FalseColorRenderer.apply(lumaBmp)
                     OverlayMode.NONE -> null
                 }
-                val previous = _overlay.value
+                // Publish the new overlay. The previous bitmap is deliberately NOT
+                // recycled here: Compose may still be drawing it on the render
+                // thread, and recycling a bitmap mid-draw throws. These overlays
+                // are small (down-sampled), so GC reclaims them safely.
                 _overlay.value = overlay
-                if (previous != null && previous !== overlay && !previous.isRecycled) {
-                    previous.recycle()
-                }
             } else if (_overlay.value != null) {
                 _overlay.value = null
             }
@@ -89,9 +89,8 @@ class ProFrameProcessor : ImageAnalysis.Analyzer {
         }
     }
 
-    /** Release the current overlay bitmap. */
+    /** Drop the current overlay reference. */
     fun clear() {
-        _overlay.value?.let { if (!it.isRecycled) it.recycle() }
         _overlay.value = null
     }
 }
