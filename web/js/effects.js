@@ -354,12 +354,27 @@ const Effects = (() => {
   /* Clean, natural, phone-camera enhance: exposure + gentle S-curve + natural
      saturation, edge-aware skin smoothing, soft highlight glow, and unsharp
      sharpening. No grain, no leaks, no vignette, no frame. */
+  /* Simple skin-tone detector (0..1). Used so smoothing targets skin, not eyes. */
+  function skinWeight(r, g, b) {
+    const mx = Math.max(r, g, b);
+    if (mx < 45) return 0;
+    const rg = r - g, rb = r - b;
+    if (rg < 6 || rb < 10) return 0;
+    if (rb > 135) return 0;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    let s = 1 - Math.abs(lum - 155) / 175;
+    if (s < 0) s = 0;
+    return Math.min(1, s * 1.35);
+  }
+
+  /* Clean, natural, phone-camera enhance. */
   function applyBeauty(canvas, b) {
     b = b || {};
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const w = canvas.width, h = canvas.height;
     const min = Math.min(w, h);
 
+    // 1. base grade: exposure, gentle contrast, natural saturation, warmth
     applyTone(canvas, {
       lift: b.exposure || 0,
       gamma: b.contrast || 1,
@@ -368,58 +383,92 @@ const Effects = (() => {
       sat: b.sat == null ? 1 : b.sat
     });
 
+    // 2. skin-aware smoothing. Blemishes are LOW-amplitude detail, so a high
+    //    threshold smooths them away while eyes, brows and hair (high detail)
+    //    survive. Weighting is strongest on skin tones.
     const smooth = b.smooth || 0;
     if (smooth > 0) {
-      const blurred = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
+      const blurred = blurCopy(canvas, Math.max(3, Math.round(min * 0.020)));
       const img = ctx.getImageData(0, 0, w, h);
       const od = img.data;
       const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
-      const thr = 24;
+      const thr = 165;
       for (let i = 0; i < od.length; i += 4) {
-        const dr = Math.abs(od[i] - bd[i]);
-        const dg = Math.abs(od[i + 1] - bd[i + 1]);
-        const db = Math.abs(od[i + 2] - bd[i + 2]);
-        const detail = (dr + dg + db) / 3;
+        const r = od[i], g = od[i + 1], bl = od[i + 2];
+        const detail = (Math.abs(r - bd[i]) + Math.abs(g - bd[i + 1]) + Math.abs(bl - bd[i + 2])) / 3;
         let k = 1 - detail / thr;
         if (k < 0) k = 0;
-        k *= smooth;
-        if (k > 0) {
-          od[i] += (bd[i] - od[i]) * k;
-          od[i + 1] += (bd[i + 1] - od[i + 1]) * k;
-          od[i + 2] += (bd[i + 2] - od[i + 2]) * k;
+        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+        const darkGuard = lum > 85 ? 1 : lum / 85;   // protect eyes, brows, hair
+        const sk = skinWeight(r, g, bl) * darkGuard;
+        const wgt = smooth * k * (0.05 + 0.95 * sk);
+        if (wgt > 0.002) {
+          od[i] = r + (bd[i] - r) * wgt;
+          od[i + 1] = g + (bd[i + 1] - g) * wgt;
+          od[i + 2] = bl + (bd[i + 2] - bl) * wgt;
         }
       }
       ctx.putImageData(img, 0, 0);
+
+      // second, wider soft-focus pass — evens out skin tone like a beauty camera
+      const wide = blurCopy(canvas, Math.max(6, Math.round(min * 0.045)));
+      const img2 = ctx.getImageData(0, 0, w, h);
+      const o2 = img2.data;
+      const wd = wide.getContext('2d').getImageData(0, 0, w, h).data;
+      for (let i = 0; i < o2.length; i += 4) {
+        const r = o2[i], g = o2[i + 1], bl = o2[i + 2];
+        const detail2 = (Math.abs(r - wd[i]) + Math.abs(g - wd[i + 1]) + Math.abs(bl - wd[i + 2])) / 3;
+        let k2 = 1 - detail2 / 70;                 // keep real features crisp
+        if (k2 < 0) k2 = 0;
+        const lum2 = 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+        const darkGuard2 = lum2 > 85 ? 1 : lum2 / 85;
+        const sk = skinWeight(r, g, bl) * darkGuard2;
+        const wgt = smooth * 0.46 * k2 * (0.02 + 0.98 * sk);
+        if (wgt > 0.002) {
+          o2[i] = r + (wd[i] - r) * wgt;
+          o2[i + 1] = g + (wd[i + 1] - g) * wgt;
+          o2[i + 2] = bl + (wd[i + 2] - bl) * wgt;
+        }
+      }
+      ctx.putImageData(img2, 0, 0);
     }
 
+    // 3. soft highlight glow
     const glow = b.glow || 0;
     if (glow > 0) {
       const t = document.createElement('canvas');
       t.width = w; t.height = h;
       const tc = t.getContext('2d');
-      tc.filter = 'brightness(1.4) contrast(2.0) blur(' + Math.max(2, Math.round(min * 0.010)) + 'px)';
+      tc.filter = 'brightness(1.45) contrast(2.2) blur(' + Math.max(2, Math.round(min * 0.012)) + 'px)';
       tc.drawImage(canvas, 0, 0);
       tc.filter = 'none';
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
-      ctx.globalAlpha = Math.min(0.4, glow * 0.32);
+      ctx.globalAlpha = Math.min(0.42, glow * 0.30);
       ctx.drawImage(t, 0, 0);
       ctx.restore();
     }
 
+    // 4. clarity + unsharp, but ONLY on real edges. Without this gate the
+    //    sharpening puts the blemishes straight back that step 2 just removed.
     const sharpen = b.sharpen || 0;
     if (sharpen > 0) {
-      const blurred = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
+      const soft = blurCopy(canvas, Math.max(2, Math.round(min * 0.012)));
+      const fine = blurCopy(canvas, Math.max(1, Math.round(min * 0.0035)));
       const img = ctx.getImageData(0, 0, w, h);
       const od = img.data;
-      const bd = blurred.getContext('2d').getImageData(0, 0, w, h).data;
+      const sd = soft.getContext('2d').getImageData(0, 0, w, h).data;
+      const fd = fine.getContext('2d').getImageData(0, 0, w, h).data;
       for (let i = 0; i < od.length; i += 4) {
-        const r = od[i] + (od[i] - bd[i]) * sharpen;
-        const g = od[i + 1] + (od[i + 1] - bd[i + 1]) * sharpen;
-        const bl = od[i + 2] + (od[i + 2] - bd[i + 2]) * sharpen;
-        od[i] = r < 0 ? 0 : r > 255 ? 255 : r;
-        od[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
-        od[i + 2] = bl < 0 ? 0 : bl > 255 ? 255 : bl;
+        for (let c = 0; c < 3; c++) {
+          const o = od[i + c];
+          const df = Math.abs(o - fd[i + c]);
+          let gate = (df - 4) / 14;           // 0 on skin/flat, 1 on hard edges
+          gate = gate < 0 ? 0 : gate > 1 ? 1 : gate;
+          let v = o + (o - fd[i + c]) * sharpen * gate * 1.8;
+          v += (o - sd[i + c]) * 0.34 * gate;
+          od[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+        }
       }
       ctx.putImageData(img, 0, 0);
     }

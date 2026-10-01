@@ -17,28 +17,28 @@ const CAMERAS = [
     id: 'beauty_natural', name: 'Natural', tag: 'Clean & true', group: 'beauty',
     desc: 'Balanced, true-to-life enhance. Soft skin, crisp detail, no colour shift.',
     filter: 'contrast(1.04) saturate(1.06) brightness(1.04)',
-    beauty: { exposure: 0.030, contrast: 1.06, sat: 1.06, warmth: 0.015, smooth: 0.45, sharpen: 0.55, glow: 0.22 },
+    beauty: { exposure: 0.045, contrast: 1.07, sat: 1.08, warmth: 0.015, smooth: 0.86, sharpen: 0.75, glow: 0.30 },
     paid: false, price: 0
   },
   {
     id: 'beauty_bright', name: 'Bright', tag: 'Airy daylight', group: 'beauty',
     desc: 'Lifted, airy exposure with soft highlights. Great indoors and in shade.',
     filter: 'contrast(1.02) saturate(1.04) brightness(1.10)',
-    beauty: { exposure: 0.075, contrast: 1.03, sat: 1.04, warmth: 0.005, smooth: 0.55, sharpen: 0.45, glow: 0.40 },
+    beauty: { exposure: 0.105, contrast: 1.03, sat: 1.05, warmth: 0.005, smooth: 0.90, sharpen: 0.60, glow: 0.55 },
     paid: false, price: 0
   },
   {
     id: 'beauty_warm', name: 'Warm', tag: 'Golden skin', group: 'beauty',
     desc: 'Golden, flattering warmth tuned for skin tones.',
     filter: 'sepia(0.10) saturate(1.12) brightness(1.05)',
-    beauty: { exposure: 0.040, contrast: 1.07, sat: 1.14, warmth: 0.075, smooth: 0.50, sharpen: 0.50, glow: 0.30 },
+    beauty: { exposure: 0.055, contrast: 1.08, sat: 1.20, warmth: 0.105, smooth: 0.88, sharpen: 0.72, glow: 0.42 },
     paid: false, price: 0
   },
   {
     id: 'beauty_portrait', name: 'Portrait', tag: 'Soft & focused', group: 'beauty',
     desc: 'Stronger smoothing with crisp centre detail — a portrait-mode feel.',
     filter: 'contrast(1.08) saturate(1.05) brightness(1.04)',
-    beauty: { exposure: 0.035, contrast: 1.09, sat: 1.05, warmth: 0.030, smooth: 0.72, sharpen: 0.75, glow: 0.34 },
+    beauty: { exposure: 0.050, contrast: 1.10, sat: 1.06, warmth: 0.030, smooth: 1.00, sharpen: 1.00, glow: 0.48 },
     paid: false, price: 0
   },
 
