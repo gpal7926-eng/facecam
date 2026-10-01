@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<!--
+  FaceCam - standalone single-file web preview.
+  HTML + CSS + JavaScript in one file: no build step, no dependencies,
+  no network calls. Just open this file in a browser.
+
+  No camera? The viewfinder offers "Demo scene try karein", which runs the
+  full shutter -> film effects -> save -> gallery path on a built-in scene.
+-->
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="description" content="FaceCam — offline vintage film camera. Purani film wali feel, ek click mein.">
+<title>FaceCam — Vintage Film Camera</title>
+<style>
+:root {
+  --bg: #0b0b0c;
+  --panel: #17171a;
+  --panel-2: #202024;
+  --line: #2c2c31;
+  --text: #f2efe9;
+  --muted: #9a978f;
+  --accent: #ff7a18;
+  --accent-2: #ffb347;
+  --danger: #ff5a5a;
+  --frame-color: #ffffff;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overscroll-behavior: none;
+}
+
+#app {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0 auto;
+  background: var(--bg);
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(0,0,0,.8);
+}
+
+/* ---------- Screens ---------- */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  background: var(--bg);
+}
+.screen.active { display: flex; }
+.screen-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+/* ---------- Splash ---------- */
+#screen-splash { align-items: center; justify-content: center; }
+.splash-inner { text-align: center; padding: 24px; }
+.logo {
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: linear-gradient(120deg, var(--accent-2), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.logo.small { font-size: 30px; }
+.logo-sub { color: var(--muted); margin-top: 10px; font-size: 15px; }
+.film-strip {
+  margin: 26px auto 0;
+  width: 160px; height: 34px;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10px, #000 10px 18px),
+    linear-gradient(#f6efe1, #cdbfa4);
+  opacity: .85;
+}
+
+/* ---------- Onboarding ---------- */
+#screen-onboarding { justify-content: center; }
+.onb { padding: 28px 22px; }
+.onb-lead { color: var(--muted); line-height: 1.6; }
+.onb-list { list-style: none; padding: 0; margin: 20px 0; }
+.onb-list li {
+  padding: 11px 12px 11px 34px;
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 9px;
+  font-size: 14.5px;
+}
+.onb-list li::before {
+  content: "\2713";
+  position: absolute; left: 12px; top: 11px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 13px 18px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn.primary {
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  border: none;
+  color: #1a1205;
+  width: 100%;
+}
+.btn.danger { color: var(--danger); border-color: rgba(255,90,90,.4); }
+.btn.small { padding: 9px 14px; font-size: 13px; }
+
+.icon-btn {
+  appearance: none;
+  border: none;
+  background: rgba(20,20,22,.62);
+  color: var(--text);
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  font-size: 17px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.icon-btn.on { background: var(--accent); color: #1a1205; }
+.icon-btn:active { transform: scale(.94); }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent-2);
+  font-size: 14px;
+  padding: 10px 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  font-weight: 600;
+}
+.link-btn.danger { color: var(--danger); }
+
+/* ---------- Viewfinder ---------- */
+.vf { position: relative; flex: 1; overflow: hidden; background: #000; }
+#video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: filter .25s ease;
+}
+.live-vignette {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 42%, rgba(0,0,0,.85) 100%);
+  opacity: .3;
+  transition: opacity .25s ease;
+}
+.live-frame {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  transition: all .2s ease;
+}
+.live-frame.thin { border: 7px solid var(--frame-color); }
+.live-frame.thick { border: 20px solid var(--frame-color); }
+.live-frame.cinema { border-top: 9vh solid #0d0d0d; border-bottom: 9vh solid #0d0d0d; }
+.live-frame.instant { border: 16px solid #fff; border-bottom-width: 58px; }
+
+.cam-fallback {
+  position: absolute; inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 30%, #26262b, #101012);
+}
+.cam-fallback.show { display: flex; }
+.cam-fallback p { margin: 0; color: var(--muted); }
+
+.countdown {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 96px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0,0,0,.7);
+  display: none;
+}
+.countdown.show { display: block; }
+
+.vf-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 14px 14px 0;
+}
+.vf-title { display: flex; flex-direction: column; }
+.vf-title span { font-weight: 700; font-size: 15px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.vf-title small { color: var(--accent-2); font-size: 12px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.vf-top-actions { display: flex; gap: 8px; }
+
+.vf-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 14px 18px;
+  background: linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0));
+}
+.vf-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.small-row { margin-bottom: 12px; }
+.small-row .icon-btn { width: 38px; height: 38px; font-size: 15px; }
+.main-row { gap: 16px; }
+.import-row { margin-top: 12px; justify-content: center; }
+
+.shutter {
+  appearance: none;
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  border: 4px solid rgba(255,255,255,.85);
+  background: rgba(255,255,255,.12);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .08s ease;
+}
+.shutter span {
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  background: #fff;
+  display: block;
+}
+.shutter:active { transform: scale(.93); }
+
+/* ---------- Developing ---------- */
+#screen-developing { align-items: center; justify-content: center; }
+.dev-wrap { text-align: center; padding: 20px; }
+#dev-img {
+  width: 74vw; max-width: 320px;
+  border-radius: 6px;
+  filter: brightness(3) blur(22px) saturate(.2);
+  opacity: .25;
+  transition: filter 2.4s ease, opacity 2.4s ease;
+}
+#dev-img.developed { filter: none; opacity: 1; }
+.dev-text { color: var(--muted); letter-spacing: 2px; margin-top: 18px; text-transform: uppercase; font-size: 13px; }
+
+/* ---------- Result ---------- */
+#screen-result { align-items: center; justify-content: center; }
+.result-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; padding: 20px; }
+#result-img {
+  max-width: 82vw; max-height: 58vh;
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.6);
+}
+.result-actions { display: flex; gap: 10px; }
+.result-actions .btn { min-width: 84px; }
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.topbar .icon-btn { width: 36px; height: 36px; font-size: 15px; }
+.topbar > span { width: 36px; }
+
+/* ---------- Gallery ---------- */
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.gallery-group-title {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 14px 0 4px;
+}
+.gallery-cell {
+  appearance: none; border: none; padding: 0;
+  aspect-ratio: 3 / 4;
+  background: var(--panel);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.gallery-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.empty { color: var(--muted); text-align: center; padding: 40px 20px; }
+
+/* ---------- Settings ---------- */
+.settings-list { display: flex; flex-direction: column; gap: 2px; }
+.settings-list .row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+.settings-list select {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font-size: 14px;
+}
+input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+.fine { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+
+/* ---------- Shop ---------- */
+.pro-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(255,122,24,.22), rgba(255,179,71,.12));
+  border: 1px solid rgba(255,179,71,.35);
+  margin-bottom: 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pro-banner.pro { opacity: .7; }
+.pro-cta { font-weight: 700; color: var(--accent-2); white-space: nowrap; }
+.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.shop-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.shop-preview {
+  position: relative;
+  height: 96px;
+  background: linear-gradient(135deg, #6b7a8f, #c9b79c);
+}
+.sp-vig {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 40%, rgba(0,0,0,.6) 100%);
+}
+.shop-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.shop-body strong { font-size: 14px; }
+.shop-body small { color: var(--accent-2); font-size: 11.5px; }
+.shop-body p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 2px 0 8px; flex: 1; }
+.buy-btn {
+  appearance: none; border: none;
+  background: var(--accent); color: #1a1205;
+  border-radius: 9px; padding: 9px; font-weight: 700; font-size: 13px;
+  cursor: pointer;
+}
+.buy-btn.owned { background: var(--panel-2); color: var(--muted); }
+
+/* ---------- Paywall ---------- */
+.paywall { text-align: center; padding: 10px; }
+.paywall .onb-list { text-align: left; margin: 22px 0; }
+.paywall .btn.primary { margin-bottom: 6px; }
+
+/* ---------- Sheets ---------- */
+.sheet { position: absolute; inset: 0; display: none; z-index: 40; }
+.sheet.show { display: block; }
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+.sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--panel);
+  border-top-left-radius: 18px; border-top-right-radius: 18px;
+  max-height: 72%;
+  overflow-y: auto;
+  padding-bottom: 14px;
+  animation: slideUp .22s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--panel);
+}
+.sheet-head h2 { font-size: 16px; margin: 0; }
+.picker-list { padding: 8px 10px; }
+.picker-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  appearance: none; border: 1px solid transparent;
+  background: none; color: var(--text);
+  padding: 10px; border-radius: 12px; cursor: pointer;
+  text-align: left;
+}
+.picker-item.selected { border-color: var(--accent); background: rgba(255,122,24,.08); }
+.swatch {
+  width: 44px; height: 44px; border-radius: 9px;
+  background: linear-gradient(135deg, #7d8b9c, #d3c1a4);
+  flex: none;
+}
+.pi-text { display: flex; flex-direction: column; flex: 1; }
+.pi-text strong { font-size: 14px; }
+.pi-text small { color: var(--accent-2); font-size: 11.5px; }
+.pi-state { font-size: 12px; color: var(--muted); }
+.pi-state.locked { color: var(--accent); font-weight: 700; }
+
+/* ---------- Viewer ---------- */
+.viewer {
+  position: absolute; inset: 0; z-index: 50;
+  display: none;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+  background: rgba(0,0,0,.94);
+  padding: 20px;
+}
+.viewer.show { display: flex; }
+.viewer img { max-width: 92%; max-height: 72%; border-radius: 8px; }
+.viewer-actions { display: flex; gap: 10px; }
+
+/* ---------- Ads / interstitial ---------- */
+.ad-banner {
+  margin: 12px 16px 16px;
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+.interstitial {
+  position: absolute; inset: 0; z-index: 60;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.85);
+}
+.interstitial.show { display: flex; }
+.ad-card {
+  background: var(--panel-2);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 34px 28px;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: absolute;
+  left: 50%; bottom: 96px;
+  transform: translate(-50%, 20px);
+  background: rgba(30,30,34,.96);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 11px 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+  z-index: 70;
+  max-width: 90%;
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Demo scene + flash ---------- */
+#demo-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: none;
+  transition: filter .25s ease;
+}
+#flash-overlay {
+  position: absolute; inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .1s ease;
+}
+#flash-overlay.go { opacity: .85; }
+
+/* ---------- Double-exposure first-shot chip ---------- */
+.double-chip {
+  position: absolute;
+  right: 14px; top: 104px;
+  width: 66px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: none;
+  border: 2px solid #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5);
+}
+.double-chip.show { display: block; }
+.double-chip img { width: 100%; display: block; }
+.double-chip span {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  font-size: 9px; text-align: center;
+  background: rgba(0,0,0,.62); color: #fff; padding: 2px 0;
+}
+
+/* ---------- Fallback + result tweaks ---------- */
+.cam-fallback .btn { width: 100%; max-width: 280px; }
+.result-cam { color: var(--accent-2); font-size: 13px; margin: -8px 0 0; letter-spacing: .5px; }
+#btn-before.on { background: var(--accent); color: #1a1205; border-color: transparent; }
+.topbar h1 small { color: var(--muted); font-weight: 500; font-size: 13px; }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Splash -->
+  <section class="screen" id="screen-splash">
+    <div class="splash-inner">
+      <div class="logo">FaceCam</div>
+      <div class="logo-sub">Purani film wali feel, ek click mein.</div>
+      <div class="film-strip"></div>
+    </div>
+  </section>
+
+  <!-- Onboarding -->
+  <section class="screen" id="screen-onboarding">
+    <div class="onb">
+      <div class="logo small">FaceCam</div>
+      <p class="onb-lead">Ek point-and-shoot camera jo aapki normal photos ko purani film jaisa bana deta hai. Koi slider nahi — bas click.</p>
+      <ul class="onb-list">
+        <li>13 vintage film cameras</li>
+        <li>Random grain, dust, light leaks, vignette</li>
+        <li>Double exposure aur instant &ldquo;developing&rdquo; wait</li>
+        <li>100% offline — sab kuch aapke device par</li>
+      </ul>
+      <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
+      <p class="fine">Camera permission chahiye. Koi data upload nahi hota.</p>
+    </div>
+  </section>
+
+  <!-- Viewfinder -->
+  <section class="screen" id="screen-viewfinder">
+    <div class="vf">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="demo-canvas"></canvas>
+      <div id="live-vignette" class="live-vignette"></div>
+      <div id="live-frame" class="live-frame"></div>
+      <div id="double-chip" class="double-chip"><img alt="First shot"><span>1st shot</span></div>
+      <div id="flash-overlay"></div>
+
+      <div id="cam-fallback" class="cam-fallback">
+        <p id="fallback-text">Camera is device par available nahi hai.</p>
+        <p class="fine">Demo scene se poora film pipeline test karein, ya gallery se photo import karein.</p>
+        <button class="btn primary" id="fallback-demo">Demo scene try karein</button>
+        <button class="btn" id="fallback-pick">Photo import karein (PRO)</button>
+      </div>
+
+      <div id="countdown" class="countdown"></div>
+
+      <div class="vf-top">
+        <div class="vf-title"><span id="cam-name">FaceCam 135 B</span><small id="cam-tag">35mm Classic</small></div>
+        <div class="vf-top-actions">
+          <button class="icon-btn" id="btn-paywall" title="PRO">PRO</button>
+          <button class="icon-btn" id="btn-settings" title="Settings">&#9881;</button>
+        </div>
+      </div>
+
+      <div class="vf-bottom">
+        <div class="vf-row small-row">
+          <button class="icon-btn" id="btn-gallery" title="Gallery">&#9635;</button>
+          <button class="icon-btn" id="btn-picker" title="Cameras">&#9788;</button>
+          <button class="icon-btn" id="btn-shop" title="Shop">&#128722;</button>
+        </div>
+        <div class="vf-row main-row">
+          <button class="icon-btn" id="btn-timer" title="Self-timer">&#8986;</button>
+          <button class="icon-btn" id="btn-flash" title="Flash">&#9889;</button>
+          <button class="shutter" id="btn-shutter" title="Shutter"><span></span></button>
+          <button class="icon-btn" id="btn-double" title="Double exposure">2x</button>
+          <button class="icon-btn" id="btn-switch" title="Flip camera">&#8646;</button>
+        </div>
+        <div class="vf-row import-row">
+          <button class="link-btn" id="btn-import">Import photo (PRO)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Developing -->
+  <section class="screen" id="screen-developing">
+    <div class="dev-wrap">
+      <img id="dev-img" alt="Developing">
+      <p class="dev-text">Developing&hellip;</p>
+    </div>
+  </section>
+
+  <!-- Result -->
+  <section class="screen" id="screen-result">
+    <div class="result-wrap">
+      <img id="result-img" alt="Result">
+      <p class="result-cam" id="result-cam"></p>
+      <div class="result-actions">
+        <button class="btn" id="result-retake">Retake</button>
+        <button class="btn primary" id="result-save">Save</button>
+        <button class="btn" id="result-share">Share</button>
+        <button class="btn" id="btn-before">Original</button>
+      </div>
+      <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
+    </div>
+  </section>
+
+  <!-- Gallery -->
+  <section class="screen" id="screen-gallery">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Gallery<small id="gallery-count"></small></h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="gallery-grid" id="gallery-grid"></div>
+      <p id="gallery-empty" class="empty">Abhi koi photo nahi. Camera se pehli shot lein.</p>
+    </div>
+    <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
+  </section>
+
+  <!-- Settings -->
+  <section class="screen" id="screen-settings">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Settings</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="settings-list">
+        <label class="row"><span>Date stamp</span><input type="checkbox" id="set-datestamp"></label>
+        <label class="row"><span>Border / frame</span><input type="checkbox" id="set-border"></label>
+        <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
+        <label class="row"><span>Default camera</span><select id="set-default"></select></label>
+        <div class="row"><span>Plan</span><strong id="set-pro-state">Free plan</strong></div>
+        <button class="link-btn" id="set-reset">Reset app data</button>
+        <a class="link-btn" href="#" onclick="return false;">Privacy policy</a>
+        <p class="fine">Sab data sirf aapke device par rehta hai. Koi server, koi login nahi.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shop -->
+  <section class="screen" id="screen-shop">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Camera Shop</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div id="shop-pro-banner" class="pro-banner">
+        <span id="shop-pro-text">PRO unlock karein</span>
+        <span class="pro-cta">Get PRO</span>
+      </div>
+      <div class="shop-grid" id="shop-grid"></div>
+    </div>
+  </section>
+
+  <!-- Paywall -->
+  <section class="screen" id="screen-paywall">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>FaceCam PRO</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="paywall">
+        <div class="logo small">PRO</div>
+        <ul class="onb-list">
+          <li>Saare cameras, aane wale bhi</li>
+          <li>Gallery se photo import</li>
+          <li>Developing wait off</li>
+          <li>Ads hatayein</li>
+        </ul>
+        <button class="btn primary" id="paywall-buy">Unlock PRO &mdash; &#8377;199</button>
+        <button class="link-btn" id="paywall-restore">Restore purchases</button>
+        <p class="fine">Demo preview: yahan PRO local storage mein set hota hai.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Camera picker sheet -->
+  <div class="sheet" id="sheet-picker">
+    <div class="sheet-backdrop"></div>
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Cameras</h2>
+        <button class="icon-btn" data-close-sheet="sheet-picker">&#10005;</button>
+      </div>
+      <div class="picker-list" id="picker-list"></div>
+    </div>
+  </div>
+
+  <!-- Photo viewer -->
+  <div class="viewer" id="viewer">
+    <img id="viewer-img" alt="Photo">
+    <div class="viewer-actions">
+      <button class="btn" id="viewer-close">Close</button>
+      <button class="btn" id="viewer-share">Share</button>
+      <button class="btn danger" id="viewer-delete">Delete</button>
+    </div>
+  </div>
+
+  <!-- Simulated interstitial -->
+  <div id="interstitial" class="interstitial">
+    <div class="ad-card">Ad &mdash; interstitial (placeholder)<br><small>PRO le kar ads hatayein</small></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <input type="file" id="import-input" accept="image/*" hidden>
+</div>
+
+<script>
+/* FaceCam — film simulation presets.
+ * Each "camera" defines a distinct vintage look. `filter` is a CSS filter string
+ * used for the live viewfinder preview and the canvas colour curve. The numeric
+ * fields (0..1) drive the randomised analog effects applied on capture.
+ */
+const CAMERAS = [
+  {
+    id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic',
+    desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
+    filter: 'contrast(1.06) saturate(1.08) sepia(0.10) brightness(1.02)',
+    grain: 0.28, dust: 0.18, vignette: 0.34, leak: 0.22,
+    leakColors: ['#ffb347', '#ff7043'],
+    frame: { style: 'thin', color: '#f6efe1' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'nomo_135_m', name: 'FaceCam 135 M', tag: '35mm Moody',
+    desc: 'Cool, contrasty monochrome-leaning look with deep shadows.',
+    filter: 'contrast(1.18) saturate(0.72) brightness(0.98) hue-rotate(-8deg)',
+    grain: 0.42, dust: 0.24, vignette: 0.48, leak: 0.14,
+    leakColors: ['#9fd3ff', '#6b8cff'],
+    frame: { style: 'thin', color: '#e9e4d8' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'nomo_135_p', name: 'FaceCam 135 P', tag: '35mm Punchy',
+    desc: 'Vivid, high-saturation film. Great for double exposures.',
+    filter: 'contrast(1.12) saturate(1.35) brightness(1.03)',
+    grain: 0.32, dust: 0.20, vignette: 0.30, leak: 0.30,
+    leakColors: ['#ff5f6d', '#ffc371'],
+    frame: { style: 'thin', color: '#fff7ea' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'toy_f', name: 'FaceCam TOY F', tag: 'Toy Camera',
+    desc: 'Cheap plastic-lens toy look. Heavy vignette, punchy colours.',
+    filter: 'contrast(1.35) saturate(1.6) brightness(1.05)',
+    grain: 0.55, dust: 0.35, vignette: 0.78, leak: 0.45,
+    leakColors: ['#ff3d6e', '#ffd166'],
+    frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'toy_k', name: 'FaceCam TOY K', tag: 'Toy Camera',
+    desc: 'Softer toy rendering with a cyan shift and strong falloff.',
+    filter: 'contrast(1.22) saturate(1.3) hue-rotate(12deg) brightness(1.04)',
+    grain: 0.50, dust: 0.32, vignette: 0.70, leak: 0.38,
+    leakColors: ['#3ddcff', '#5b7bff'],
+    frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'roma', name: 'FaceCam ROMA', tag: 'Italian Summer',
+    desc: 'Golden Mediterranean warmth. Faded blacks, sun-bleached colour.',
+    filter: 'sepia(0.35) saturate(1.15) contrast(0.95) brightness(1.06)',
+    grain: 0.30, dust: 0.22, vignette: 0.32, leak: 0.50,
+    leakColors: ['#ffd27f', '#ff9a3c'],
+    frame: { style: 'thin', color: '#fbf3e3' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'fr2', name: 'FaceCam FR2', tag: 'French New Wave',
+    desc: 'Cinematic teal-and-orange with gentle halation.',
+    filter: 'contrast(1.14) saturate(1.05) hue-rotate(-14deg) brightness(0.99)',
+    grain: 0.36, dust: 0.18, vignette: 0.40, leak: 0.28,
+    leakColors: ['#ff8a5c', '#ffd08a'],
+    frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
+    paid: true, price: 99
+  },
+  {
+    id: 'film_2007', name: 'FaceCam 2007', tag: 'Digicam Nostalgia',
+    desc: 'Early-2000s compact camera: harsh flash, oversharpened, magenta.',
+    filter: 'contrast(1.25) saturate(1.25) hue-rotate(6deg) brightness(1.05)',
+    grain: 0.60, dust: 0.30, vignette: 0.44, leak: 0.20,
+    leakColors: ['#ff77c8', '#ffd0f0'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'eats', name: 'FaceCam EATS', tag: 'Food Camera',
+    desc: 'Tuned for food: warm, appetising, boosted mid-tones.',
+    filter: 'contrast(1.10) saturate(1.45) sepia(0.12) brightness(1.08)',
+    grain: 0.22, dust: 0.12, vignette: 0.26, leak: 0.30,
+    leakColors: ['#ffcf5c', '#ff9f43'],
+    frame: { style: 'thin', color: '#fff6e6' }, dateStamp: false,
+    paid: true, price: 99
+  },
+  {
+    id: 'ins_2', name: 'FaceCam INS 2', tag: 'Instant / Polaroid',
+    desc: 'Instant film with a thick white border and a developing wait.',
+    filter: 'contrast(0.94) saturate(0.92) sepia(0.20) brightness(1.10)',
+    grain: 0.34, dust: 0.26, vignette: 0.20, leak: 0.55,
+    leakColors: ['#ffe6a7', '#ffb26b'],
+    frame: { style: 'instant', color: '#ffffff' }, dateStamp: false,
+    instant: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'swirly_2', name: 'FaceCam SWIRLY 2', tag: 'Swirly Bokeh',
+    desc: 'Petzval-style swirl. Soft corners, dreamy centre.',
+    filter: 'contrast(1.05) saturate(1.10) blur(0.4px) brightness(1.04)',
+    grain: 0.30, dust: 0.16, vignette: 0.62, leak: 0.34,
+    leakColors: ['#c9a7ff', '#7fd8ff'],
+    frame: { style: 'thin', color: '#f2ecff' }, dateStamp: false,
+    paid: true, price: 149
+  },
+  {
+    id: 'range_67', name: 'FaceCam Range 67', tag: 'Rangefinder 6x7',
+    desc: 'Medium-format rangefinder. Rich, dense, professional colour.',
+    filter: 'contrast(1.16) saturate(1.12) brightness(0.99) sepia(0.06)',
+    grain: 0.26, dust: 0.14, vignette: 0.30, leak: 0.18,
+    leakColors: ['#ffc9a0', '#ff8f6b'],
+    frame: { style: 'cinema', color: '#141414' }, dateStamp: true,
+    paid: true, price: 199
+  },
+  {
+    id: 'wide_17', name: 'FaceCam Wide 17', tag: 'Ultra Wide',
+    desc: 'Wide-lens look with lifted blacks and a cool cast.',
+    filter: 'contrast(1.08) saturate(0.95) hue-rotate(-6deg) brightness(1.02)',
+    grain: 0.30, dust: 0.18, vignette: 0.42, leak: 0.26,
+    leakColors: ['#8fd8ff', '#c6f0ff'],
+    frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
+    paid: false, price: 0
+  }
+];
+
+if (typeof module !== 'undefined') { module.exports = { CAMERAS }; }
+
+</script>
+<script>
+/* FaceCam — analog film effects engine.
+ * Pure canvas. Colour curve comes from the preset's CSS filter; everything else
+ * (grain, light leak, vignette, dust/scratches, frame, date stamp) is drawn here
+ * with randomised intensity so no two photos look identical.
+ */
+const Effects = (() => {
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const randInt = (a, b) => Math.floor(rand(a, b + 1));
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  function drawCover(ctx, source, w, h) {
+    const sw = source.videoWidth || source.naturalWidth || source.width;
+    const sh = source.videoHeight || source.naturalHeight || source.height;
+    if (!sw || !sh) return;
+    const scale = Math.max(w / sw, h / sh);
+    const dw = sw * scale, dh = sh * scale;
+    ctx.drawImage(source, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+
+  /* Grab a frame from a video/image and apply the colour curve. */
+  function capture(source, w, h, filter) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.filter = filter || 'none';
+    drawCover(ctx, source, w, h);
+    ctx.filter = 'none';
+    return c;
+  }
+
+  function grain(ctx, w, h, amount) {
+    if (amount <= 0) return;
+    const size = 160;
+    const n = document.createElement('canvas');
+    n.width = size; n.height = size;
+    const nctx = n.getContext('2d');
+    const img = nctx.createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 128 + (Math.random() * 2 - 1) * 127;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    nctx.putImageData(img, 0, 0);
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.85, amount * 0.55);
+    ctx.globalCompositeOperation = 'overlay';
+    const pat = ctx.createPattern(n, 'repeat');
+    ctx.fillStyle = pat;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function lightLeak(ctx, w, h, amount, colors) {
+    if (amount <= 0 || !colors || !colors.length) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const c = pick(colors);
+    const edge = randInt(0, 3);
+    let g;
+    if (edge === 0) g = ctx.createLinearGradient(0, 0, w * rand(0.35, 0.6), 0);
+    else if (edge === 1) g = ctx.createLinearGradient(w, 0, w * rand(0.4, 0.65), 0);
+    else if (edge === 2) g = ctx.createLinearGradient(0, 0, 0, h * rand(0.35, 0.6));
+    else g = ctx.createLinearGradient(0, h, 0, h * rand(0.4, 0.65));
+    const a = Math.min(0.75, amount * 0.55);
+    g.addColorStop(0, hexToRgba(c, a));
+    g.addColorStop(0.5, hexToRgba(c, a * 0.35));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function vignette(ctx, w, h, amount) {
+    const g = ctx.createRadialGradient(
+      w / 2, h / 2, Math.min(w, h) * 0.28,
+      w / 2, h / 2, Math.max(w, h) * 0.72
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,' + Math.min(0.9, 0.12 + amount * 0.62).toFixed(3) + ')');
+    ctx.save();
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+  function dust(ctx, w, h, amount) {
+    if (amount <= 0) return;
+    ctx.save();
+    const count = Math.floor(amount * 150);
+    for (let i = 0; i < count; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      const r = rand(0.3, 1.8);
+      ctx.globalAlpha = rand(0.12, 0.5);
+      ctx.fillStyle = Math.random() < 0.6 ? '#ffffff' : '#101010';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const scratches = Math.floor(amount * 5);
+    for (let i = 0; i < scratches; i++) {
+      ctx.globalAlpha = rand(0.06, 0.2);
+      ctx.strokeStyle = Math.random() < 0.5 ? '#ffffff' : '#181818';
+      ctx.lineWidth = rand(0.5, 1.4);
+      const x = Math.random() * w;
+      ctx.beginPath();
+      ctx.moveTo(x, rand(0, h * 0.35));
+      ctx.lineTo(x + rand(-10, 10), h - rand(0, h * 0.35));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function frame(ctx, w, h, frame) {
+    if (!frame) return;
+    ctx.save();
+    const min = Math.min(w, h);
+    if (frame.style === 'instant') {
+      const b = Math.round(w * 0.055);
+      const bottom = Math.round(b * 3.2);
+      ctx.fillStyle = frame.color;
+      ctx.fillRect(0, 0, w, b);
+      ctx.fillRect(0, h - bottom, w, bottom);
+      ctx.fillRect(0, 0, b, h);
+      ctx.fillRect(w - b, 0, b, h);
+    } else if (frame.style === 'thick') {
+      const b = Math.round(min * 0.05);
+      ctx.strokeStyle = frame.color;
+      ctx.lineWidth = b;
+      ctx.strokeRect(b / 2, b / 2, w - b, h - b);
+    } else if (frame.style === 'cinema') {
+      const b = Math.round(h * 0.06);
+      ctx.fillStyle = frame.color;
+      ctx.fillRect(0, 0, w, b);
+      ctx.fillRect(0, h - b, w, b);
+    } else {
+      const b = Math.max(6, Math.round(min * 0.025));
+      ctx.strokeStyle = frame.color;
+      ctx.lineWidth = b;
+      ctx.strokeRect(b / 2, b / 2, w - b, h - b);
+    }
+    ctx.restore();
+  }
+
+  function dateStamp(ctx, w, h) {
+    const d = new Date();
+    const txt = "'" + String(d.getFullYear()).slice(2) + ' ' +
+      String(d.getMonth() + 1).padStart(2, '0') + ' ' +
+      String(d.getDate()).padStart(2, '0');
+    const size = Math.max(14, Math.round(w * 0.045));
+    ctx.save();
+    ctx.font = 'bold ' + size + 'px "Courier New", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = '#ff7a18';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = size * 0.35;
+    ctx.fillText(txt, w - Math.round(w * 0.07), h - Math.round(h * 0.06));
+    ctx.restore();
+  }
+
+  /* Run the full randomised pipeline over a captured canvas. */
+  function process(canvas, preset, settings) {
+    settings = settings || {};
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const g = Math.min(1, preset.grain * rand(0.6, 1.4));
+    const l = preset.leak * rand(0.4, 1.6);
+    const v = Math.min(1, preset.vignette * rand(0.7, 1.3));
+    const d = Math.min(1, preset.dust * rand(0.5, 1.5));
+
+    grain(ctx, w, h, g);
+    lightLeak(ctx, w, h, l, preset.leakColors);
+    vignette(ctx, w, h, v);
+    dust(ctx, w, h, d);
+    if (settings.border !== false) frame(ctx, w, h, preset.frame);
+    if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h);
+    return canvas;
+  }
+
+  /* Merge two frames for double exposure. */
+  function blend(a, b) {
+    const ctx = a.getContext('2d');
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(b, 0, 0, a.width, a.height);
+    ctx.restore();
+    return a;
+  }
+
+  function hexToRgba(hex, a) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  return { capture, process, blend, rand, pick };
+})();
+
+if (typeof module !== 'undefined') { module.exports = { Effects }; }
+
+</script>
+<script>
+/* FaceCam — web preview app (HTML / CSS / JavaScript).
+ *
+ * Mirrors the Android app's feature set and is fully self-contained: no build
+ * step, no dependencies, no network calls.
+ *
+ *   localStorage  -> settings, owned cameras, PRO flag, save counter
+ *   IndexedDB     -> captured photos
+ *   getUserMedia  -> live viewfinder   (falls back to a built-in demo scene)
+ *   <canvas>      -> the whole film pipeline
+ */
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   * Local storage (settings / ownership / PRO)
+   * ------------------------------------------------------------------ */
+  const LS = {
+    get(key, fallback) {
+      try {
+        const v = localStorage.getItem('facecam.' + key);
+        return v === null ? fallback : JSON.parse(v);
+      } catch (e) { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem('facecam.' + key, JSON.stringify(value)); } catch (e) {}
+    }
+  };
+
+  const FREE_IDS = CAMERAS.filter(c => !c.paid).map(c => c.id);
+
+  const store = {
+    owned() {
+      const o = LS.get('owned', null);
+      return o === null ? FREE_IDS.slice() : o;
+    },
+    owns(id) { return this.owned().indexOf(id) !== -1; },
+    grant(id) {
+      const o = this.owned();
+      if (o.indexOf(id) === -1) { o.push(id); LS.set('owned', o); }
+    },
+    isPro() { return LS.get('pro', false); },
+    setPro(v) { LS.set('pro', !!v); },
+    settings() {
+      return LS.get('settings', {
+        dateStamp: true, border: true, sound: true, defaultCamera: 'nomo_135_b'
+      });
+    },
+    saveSettings(s) { LS.set('settings', s); },
+    saves() { return LS.get('saves', 0); },
+    bumpSaves() { const n = this.saves() + 1; LS.set('saves', n); return n; },
+    seen() { return LS.get('seen', false); },
+    markSeen() { LS.set('seen', true); },
+    reset() {
+      ['owned', 'pro', 'settings', 'saves', 'seen'].forEach(k => localStorage.removeItem('facecam.' + k));
+    }
+  };
+
+  /* ------------------------------------------------------------------ *
+   * IndexedDB photo store
+   * ------------------------------------------------------------------ */
+  const Photos = {
+    db: null,
+    mem: [],
+    nextId: 1,
+    useMem: false,
+
+    /* Opens IndexedDB, but never blocks or hangs the UI: if the database is
+       unavailable (private mode, blocked storage, old browser) we silently
+       fall back to an in-memory store so the gallery still works. */
+    open() {
+      return new Promise((resolve) => {
+        if (!window.indexedDB) { this.useMem = true; resolve(null); return; }
+        let settled = false;
+        const giveUp = setTimeout(() => {
+          if (!settled) { settled = true; this.useMem = true; resolve(null); }
+        }, 4000);
+        let req;
+        try { req = indexedDB.open('facecam', 1); }
+        catch (e) { clearTimeout(giveUp); this.useMem = true; resolve(null); return; }
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('photos')) {
+            db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        req.onsuccess = () => {
+          this.db = req.result;
+          clearTimeout(giveUp);
+          if (!settled) { settled = true; resolve(this.db); }
+        };
+        req.onerror = () => {
+          clearTimeout(giveUp);
+          this.useMem = true;
+          if (!settled) { settled = true; resolve(null); }
+        };
+      });
+    },
+
+    /* Write-through: every photo is kept in memory straight away (so the
+       gallery is instant and never blocks), and mirrored into IndexedDB for
+       persistence across reloads. If IndexedDB misbehaves, the session still
+       works — only cross-reload persistence is lost. */
+    add(photo) {
+      const rec = Object.assign({}, photo, { id: this.nextId++ });
+      this.mem.push(rec);
+      if (this.db) {
+        try {
+          this.db.transaction('photos', 'readwrite').objectStore('photos').add(photo);
+        } catch (e) { /* ignore — memory copy already holds it */ }
+      }
+      return Promise.resolve(rec.id);
+    },
+
+    all() {
+      return new Promise((resolve) => {
+        const merge = (extra) => {
+          const byKey = {};
+          this.mem.forEach(p => { byKey[String(p.ts)] = p; });
+          (extra || []).forEach(p => { byKey[String(p.ts)] = p; });
+          resolve(Object.keys(byKey).map(k => byKey[k]).sort((a, b) => b.ts - a.ts));
+        };
+        if (!this.db) { merge([]); return; }
+        let settled = false;
+        const giveUp = setTimeout(() => { if (!settled) { settled = true; merge([]); } }, 1500);
+        try {
+          const r = this.db.transaction('photos', 'readonly').objectStore('photos').getAll();
+          r.onsuccess = () => { if (!settled) { settled = true; clearTimeout(giveUp); merge(r.result || []); } };
+          r.onerror = () => { if (!settled) { settled = true; clearTimeout(giveUp); merge([]); } };
+        } catch (e) { clearTimeout(giveUp); merge([]); }
+      });
+    },
+
+    del(id) {
+      this.mem = this.mem.filter(p => p.id !== id);
+      if (this.db) {
+        try { this.db.transaction('photos', 'readwrite').objectStore('photos').delete(id); }
+        catch (e) { /* ignore */ }
+      }
+      return Promise.resolve();
+    }
+  };
+
+  /* ------------------------------------------------------------------ *
+   * App state + small helpers
+   * ------------------------------------------------------------------ */
+  const state = {
+    cameraId: 'nomo_135_b',
+    facing: 'environment',
+    flash: false,
+    torchAvailable: false,
+    timer: 0,
+    stream: null,
+    demo: false,
+    demoSource: null,
+    lastPhoto: null,
+    lastOriginal: null,
+    showingOriginal: false,
+    double: false,
+    firstShot: null,
+    pendingTimer: null,
+    busy: false,
+    camGen: 0
+  };
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
+  const cameraById = (id) => CAMERAS.filter(c => c.id === id)[0] || CAMERAS[0];
+  const rupee = (n) => '\u20B9' + n;
+
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('camera-timeout')), ms);
+      promise.then(
+        v => { clearTimeout(t); resolve(v); },
+        e => { clearTimeout(t); reject(e); }
+      );
+    });
+  }
+
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('show'), 1900);
+  }
+
+  function show(id) {
+    $$('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    document.body.dataset.screen = id;
+    if (id !== 'screen-viewfinder' && state.pendingTimer) {
+      clearInterval(state.pendingTimer);
+      state.pendingTimer = null;
+      $('#countdown').classList.remove('show');
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Built-in demo scene (used when no camera is available, so the whole
+   * pipeline — shutter, film effects, save, gallery — still works)
+   * ------------------------------------------------------------------ */
+  function drawSampleScene(canvas) {
+    canvas.width = 540; canvas.height = 960;
+    const g = canvas.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 960);
+    grad.addColorStop(0, '#1d3d72');
+    grad.addColorStop(0.42, '#e2814a');
+    grad.addColorStop(0.62, '#f7c46d');
+    grad.addColorStop(1, '#6b4a3a');
+    g.fillStyle = grad; g.fillRect(0, 0, 540, 960);
+
+    g.beginPath(); g.arc(355, 330, 150, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,220,140,0.20)'; g.fill();
+    g.beginPath(); g.arc(355, 330, 92, 0, Math.PI * 2);
+    g.fillStyle = '#fff3cd'; g.fill();
+
+    g.fillStyle = '#4b3a55';
+    g.beginPath(); g.moveTo(-40, 700); g.lineTo(190, 470); g.lineTo(430, 700); g.closePath(); g.fill();
+    g.fillStyle = '#38293f';
+    g.beginPath(); g.moveTo(250, 720); g.lineTo(470, 520); g.lineTo(640, 720); g.closePath(); g.fill();
+    g.fillStyle = '#241c2c'; g.fillRect(0, 690, 540, 270);
+
+    for (let i = 0; i < 5; i++) {
+      const x = 60 + i * 105, y = 690;
+      g.fillStyle = '#2f2438'; g.fillRect(x - 4, y - 40, 8, 45);
+      g.beginPath(); g.arc(x, y - 52, 22, 0, Math.PI * 2);
+      g.fillStyle = '#3d6b4f'; g.fill();
+    }
+
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.font = '600 26px -apple-system, Segoe UI, sans-serif';
+    g.fillText('13:42', 40, 70);
+
+    g.fillStyle = 'rgba(255,255,255,0.75)';
+    g.font = '600 17px -apple-system, Segoe UI, sans-serif';
+    g.fillText('FaceCam demo scene', 40, 930);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Camera
+   * ------------------------------------------------------------------ */
+  async function startCamera() {
+    const gen = ++state.camGen;   // invalidates any earlier in-flight attempt
+    stopCamera();
+    state.demo = false;
+    $('#demo-canvas').style.display = 'none';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showFallback('Is browser mein camera support nahi hai.');
+      return;
+    }
+    try {
+      const stream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: state.facing, width: { ideal: 1440 }, height: { ideal: 1920 } },
+          audio: false
+        }),
+        7000
+      );
+      if (!stream || !stream.getVideoTracks().length) throw new Error('no-video-track');
+      if (gen !== state.camGen) { stream.getTracks().forEach(t => t.stop()); return; }
+      state.stream = stream;
+      const video = $('#video');
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      $('#cam-fallback').classList.remove('show');
+      video.style.display = 'block';
+      applyTorch();
+    } catch (e) {
+      if (gen !== state.camGen || state.demo) return;   // a newer attempt / demo mode won
+      let why = 'Camera is device par available nahi hai.';
+      if (e && e.name === 'NotAllowedError') why = 'Camera permission deny ho gayi.';
+      else if (e && e.name === 'NotFoundError') why = 'Koi camera nahi mila.';
+      else if (e && e.message === 'camera-timeout') why = 'Camera start nahi ho paya (timeout).';
+      showFallback(why);
+    }
+  }
+
+  function showFallback(reason) {
+    $('#fallback-text').textContent = reason;
+    $('#cam-fallback').classList.add('show');
+    $('#video').style.display = 'none';
+  }
+
+  function stopCamera() {
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+    state.torchAvailable = false;
+  }
+
+  /* Real torch if the device exposes it, otherwise we fall back to a
+     screen-flash at capture time. */
+  async function applyTorch() {
+    if (!state.stream) return;
+    const track = state.stream.getVideoTracks()[0];
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    if (caps && caps.torch) {
+      try {
+        await track.applyConstraints({ advanced: [{ torch: state.flash }] });
+        state.torchAvailable = true;
+        return;
+      } catch (e) { /* fall through to screen flash */ }
+    }
+    state.torchAvailable = false;
+  }
+
+  function startDemo() {
+    state.camGen++;   // cancel any pending camera attempt so it can't clobber this
+    const cv = $('#demo-canvas');
+    if (!cv.dataset.drawn) { drawSampleScene(cv); cv.dataset.drawn = '1'; }
+    cv.style.display = 'block';
+    $('#video').style.display = 'none';
+    $('#cam-fallback').classList.remove('show');
+    state.demo = true;
+    state.demoSource = cv;
+    applyLiveLook();
+    toast('Demo scene ready — shutter dabayein');
+  }
+
+  function applyLiveLook() {
+    const cam = cameraById(state.cameraId);
+    $('#video').style.filter = cam.filter;
+    $('#demo-canvas').style.filter = cam.filter;
+    $('#live-vignette').style.opacity = Math.min(0.85, cam.vignette * 0.8).toFixed(2);
+    const frameEl = $('#live-frame');
+    frameEl.className = 'live-frame ' + (cam.frame ? cam.frame.style : '');
+    frameEl.style.setProperty('--frame-color', cam.frame ? cam.frame.color : '#fff');
+    $('#cam-name').textContent = cam.name;
+    $('#cam-tag').textContent = cam.tag;
+  }
+
+  function hasSource() { return !!state.stream || state.demo; }
+
+  /* ------------------------------------------------------------------ *
+   * Capture
+   * ------------------------------------------------------------------ */
+  function grabCanvas(extraFilter) {
+    const cam = cameraById(state.cameraId);
+    const source = state.demo ? state.demoSource : $('#video');
+    let w = source.videoWidth || source.width || 1080;
+    let h = source.videoHeight || source.height || 1440;
+    const maxDim = 1400;
+    if (Math.max(w, h) > maxDim) {
+      const s = maxDim / Math.max(w, h);
+      w = Math.round(w * s); h = Math.round(h * s);
+    }
+    return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
+  }
+
+  function screenFlash() {
+    const f = $('#flash-overlay');
+    f.classList.add('go');
+    setTimeout(() => f.classList.remove('go'), 220);
+  }
+
+  function shutterPressed() {
+    if (state.busy) return;
+    if (!hasSource()) {
+      toast('Pehle camera on karein ya demo scene chalayein');
+      return;
+    }
+    if (state.timer > 0) {
+      let n = state.timer;
+      const overlay = $('#countdown');
+      overlay.classList.add('show');
+      overlay.textContent = n;
+      state.pendingTimer = setInterval(() => {
+        n -= 1;
+        if (n <= 0) {
+          clearInterval(state.pendingTimer);
+          state.pendingTimer = null;
+          overlay.classList.remove('show');
+          shoot();
+        } else {
+          overlay.textContent = n;
+        }
+      }, 1000);
+    } else {
+      shoot();
+    }
+  }
+
+  function shoot() {
+    if (state.busy || !hasSource()) return;
+    state.busy = true;
+    setTimeout(() => { state.busy = false; }, 350);
+
+    const cam = cameraById(state.cameraId);
+    const useFlash = state.flash && !state.torchAvailable;
+    if (state.flash) screenFlash();
+
+    const raw = grabCanvas(useFlash ? ' brightness(1.35) contrast(1.05)' : '');
+    state.lastOriginal = raw.toDataURL('image/jpeg', 0.9);
+
+    if (state.double) {
+      if (!state.firstShot) {
+        state.firstShot = raw;
+        const chip = $('#double-chip');
+        chip.querySelector('img').src = state.lastOriginal;
+        chip.classList.add('show');
+        toast('Double exposure: pehla shot ho gaya — ab dusra lein');
+        return;
+      }
+      const merged = Effects.blend(state.firstShot, raw);
+      state.firstShot = null;
+      $('#double-chip').classList.remove('show');
+      state.double = false;
+      $('#btn-double').classList.remove('on');
+      afterCapture(cam, merged);
+      return;
+    }
+    afterCapture(cam, raw);
+  }
+
+  function afterCapture(cam, canvas) {
+    if (cam.instant && !store.isPro()) {
+      const developed = canvas.cloneNode(false);
+      developed.width = canvas.width; developed.height = canvas.height;
+      developed.getContext('2d').drawImage(canvas, 0, 0);
+      Effects.process(developed, cam, store.settings());
+      state.lastPhoto = { dataUrl: developed.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      runDeveloping();
+    } else {
+      Effects.process(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      if (store.settings().sound) beep();
+      openResult();
+    }
+  }
+
+  function runDeveloping() {
+    const img = $('#dev-img');
+    img.src = state.lastPhoto.dataUrl;
+    img.classList.remove('developed');
+    show('screen-developing');
+    setTimeout(() => {
+      img.classList.add('developed');
+      setTimeout(openResult, 1300);
+    }, 2500);
+  }
+
+  function openResult() {
+    state.showingOriginal = false;
+    const img = $('#result-img');
+    img.src = state.lastPhoto.dataUrl;
+    $('#result-cam').textContent = state.lastPhoto.camName;
+    $('#btn-before').textContent = 'Original';
+    $('#btn-before').classList.remove('on');
+    show('screen-result');
+  }
+
+  function toggleBefore() {
+    if (!state.lastPhoto) return;
+    state.showingOriginal = !state.showingOriginal;
+    $('#result-img').src = state.showingOriginal ? state.lastOriginal : state.lastPhoto.dataUrl;
+    $('#btn-before').textContent = state.showingOriginal ? 'Film' : 'Original';
+    $('#btn-before').classList.toggle('on', state.showingOriginal);
+  }
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.05);
+      setTimeout(() => ctx.close(), 200);
+    } catch (e) {}
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Result actions
+   * ------------------------------------------------------------------ */
+  async function savePhoto() {
+    if (!state.lastPhoto) return;
+    try {
+      await Photos.add({
+        dataUrl: state.lastPhoto.dataUrl,
+        camId: state.lastPhoto.camId,
+        camName: state.lastPhoto.camName,
+        ts: Date.now()
+      });
+    } catch (e) { /* storage unavailable — still deliver the file */ }
+    download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
+    const n = store.bumpSaves();
+    toast('Gallery mein save ho gaya');
+    if (!store.isPro() && n % 3 === 0) showInterstitial();
+  }
+
+  function download(dataUrl, name) {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  async function sharePhoto() {
+    if (!state.lastPhoto) return;
+    try {
+      const blob = await (await fetch(state.lastPhoto.dataUrl)).blob();
+      const file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'FaceCam' });
+        return;
+      }
+    } catch (e) {}
+    download(state.lastPhoto.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
+    toast('Share support nahi — photo download ho gayi');
+  }
+
+  function showInterstitial() {
+    const ad = $('#interstitial');
+    ad.classList.add('show');
+    setTimeout(() => ad.classList.remove('show'), 2500);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Gallery
+   * ------------------------------------------------------------------ */
+  function paintGallery(photos) {
+    const grid = $('#gallery-grid');
+    photos.sort((a, b) => b.ts - a.ts);
+    grid.innerHTML = '';
+    $('#gallery-count').textContent = photos.length ? ' \u00B7 ' + photos.length : '';
+    $('#gallery-empty').style.display = photos.length ? 'none' : 'block';
+
+    const groups = {};
+    photos.forEach(p => { (groups[p.camName] = groups[p.camName] || []).push(p); });
+
+    Object.keys(groups).forEach(name => {
+      const h = document.createElement('div');
+      h.className = 'gallery-group-title';
+      h.textContent = name + '  (' + groups[name].length + ')';
+      grid.appendChild(h);
+      groups[name].forEach(p => {
+        const cell = document.createElement('button');
+        cell.className = 'gallery-cell';
+        cell.innerHTML = '<img src="' + p.dataUrl + '" alt="">';
+        cell.addEventListener('click', () => openPhoto(p));
+        grid.appendChild(cell);
+      });
+    });
+
+    if (photos.length) {
+      const clear = document.createElement('button');
+      clear.className = 'link-btn danger';
+      clear.textContent = 'Clear gallery';
+      clear.style.gridColumn = '1 / -1';
+      clear.addEventListener('click', async () => {
+        if (confirm('Poori gallery delete karein?')) {
+          for (const p of photos) { try { await Photos.del(p.id); } catch (e) {} }
+          renderGallery();
+        }
+      });
+      grid.appendChild(clear);
+    }
+  }
+
+  /* Paint instantly from the in-memory copy so the gallery never waits on
+     storage, then refresh once the database answers. */
+  function renderGallery() {
+    paintGallery(Photos.mem.slice());
+    Photos.all().then(list => paintGallery(list)).catch(() => {});
+  }
+
+  function openPhoto(p) {
+    $('#viewer-img').src = p.dataUrl;
+    $('#viewer').classList.add('show');
+    $('#viewer-delete').onclick = async () => {
+      try { await Photos.del(p.id); } catch (e) {}
+      $('#viewer').classList.remove('show');
+      renderGallery();
+    };
+    $('#viewer-share').onclick = async () => {
+      try {
+        const blob = await (await fetch(p.dataUrl)).blob();
+        const file = new File([blob], 'FaceCam.jpg', { type: 'image/jpeg' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file] });
+          return;
+        }
+      } catch (e) {}
+      download(p.dataUrl, 'FaceCam_' + p.ts + '.jpg');
+    };
+    $('#viewer-close').onclick = () => $('#viewer').classList.remove('show');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Camera picker + shop
+   * ------------------------------------------------------------------ */
+  function renderPicker() {
+    const wrap = $('#picker-list');
+    wrap.innerHTML = '';
+    CAMERAS.forEach(cam => {
+      const owned = store.owns(cam.id) || store.isPro();
+      const item = document.createElement('button');
+      item.className = 'picker-item' + (cam.id === state.cameraId ? ' selected' : '');
+      item.innerHTML =
+        '<span class="swatch" style="filter:' + cam.filter + '"></span>' +
+        '<span class="pi-text"><strong>' + cam.name + '</strong><small>' + cam.tag + '</small></span>' +
+        (owned ? '<span class="pi-state">' + (cam.id === state.cameraId ? 'In use' : 'Owned') + '</span>'
+               : '<span class="pi-state locked">' + rupee(cam.price) + '</span>');
+      item.addEventListener('click', () => {
+        if (!owned) { toast('Pehle ise shop se unlock karein'); closeSheet('#sheet-picker'); openShop(); return; }
+        selectCamera(cam.id);
+        closeSheet('#sheet-picker');
+      });
+      wrap.appendChild(item);
+    });
+  }
+
+  function renderShop() {
+    const grid = $('#shop-grid');
+    grid.innerHTML = '';
+    CAMERAS.forEach(cam => {
+      const owned = store.owns(cam.id) || store.isPro();
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      card.innerHTML =
+        '<div class="shop-preview" style="filter:' + cam.filter + '">' +
+        '<div class="sp-vig"></div></div>' +
+        '<div class="shop-body"><strong>' + cam.name + '</strong>' +
+        '<small>' + cam.tag + '</small>' +
+        '<p>' + cam.desc + '</p>' +
+        '<button class="buy-btn ' + (owned ? 'owned' : '') + '">' +
+        (owned ? 'Owned' : (cam.paid ? rupee(cam.price) : 'Free')) + '</button></div>';
+      const btn = card.querySelector('.buy-btn');
+      btn.addEventListener('click', () => {
+        if (owned) { selectCamera(cam.id); show('screen-viewfinder'); return; }
+        if (cam.paid && !store.isPro()) { openPaywall(); return; }
+        store.grant(cam.id);
+        renderShop(); renderPicker();
+        toast(cam.name + ' unlocked');
+      });
+      grid.appendChild(card);
+    });
+    $('#shop-pro-banner').classList.toggle('pro', store.isPro());
+    $('#shop-pro-text').textContent = store.isPro()
+      ? 'PRO active — saare cameras aur tools unlocked.'
+      : 'PRO unlock karein — saare cameras + import + no ads.';
+  }
+
+  function selectCamera(id) {
+    state.cameraId = id;
+    const s = store.settings();
+    s.defaultCamera = id;
+    store.saveSettings(s);
+    applyLiveLook();
+  }
+
+  function openShop() { renderShop(); show('screen-shop'); }
+  function openPaywall() { show('screen-paywall'); }
+  function closeSheet(sel) { const el = $(sel); if (el) el.classList.remove('show'); }
+  function openSheet(sel) { const el = $(sel); if (el) el.classList.add('show'); }
+
+  /* ------------------------------------------------------------------ *
+   * Settings
+   * ------------------------------------------------------------------ */
+  function renderSettings() {
+    const s = store.settings();
+    $('#set-datestamp').checked = !!s.dateStamp;
+    $('#set-border').checked = s.border !== false;
+    $('#set-sound').checked = !!s.sound;
+    const sel = $('#set-default');
+    sel.innerHTML = '';
+    CAMERAS.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      if (c.id === s.defaultCamera) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    $('#set-pro-state').textContent = store.isPro() ? 'PRO active' : 'Free plan';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Import (PRO)
+   * ------------------------------------------------------------------ */
+  function importPhoto(file) {
+    const img = new Image();
+    img.onload = () => {
+      const cam = cameraById(state.cameraId);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const maxDim = 1400;
+      if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+      const canvas = Effects.capture(img, w, h, cam.filter);
+      state.lastOriginal = canvas.toDataURL('image/jpeg', 0.9);
+      Effects.process(canvas, cam, store.settings());
+      state.lastPhoto = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), camId: cam.id, camName: cam.name };
+      openResult();
+    };
+    img.onerror = () => toast('Ye image load nahi ho payi');
+    img.src = URL.createObjectURL(file);
+  }
+
+  function requestImport() {
+    if (!store.isPro()) { openPaywall(); toast('Import PRO feature hai'); return; }
+    $('#import-input').click();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Wiring
+   * ------------------------------------------------------------------ */
+  function bind() {
+    $('#btn-onboard').addEventListener('click', async () => {
+      store.markSeen();
+      show('screen-viewfinder');
+      await startCamera();
+      applyLiveLook();
+    });
+
+    $('#btn-shutter').addEventListener('click', shutterPressed);
+
+    $('#btn-switch').addEventListener('click', async () => {
+      if (state.demo) { toast('Demo mode mein camera switch nahi hota'); return; }
+      state.facing = state.facing === 'environment' ? 'user' : 'environment';
+      await startCamera();
+      applyLiveLook();
+      toast(state.facing === 'user' ? 'Front camera' : 'Back camera');
+    });
+
+    $('#btn-flash').addEventListener('click', async () => {
+      state.flash = !state.flash;
+      $('#btn-flash').classList.toggle('on', state.flash);
+      if (state.flash) await applyTorch();
+      toast(state.flash
+        ? (state.torchAvailable ? 'Flash (torch) on' : 'Flash on — screen flash')
+        : 'Flash off');
+    });
+
+    $('#btn-timer').addEventListener('click', () => {
+      state.timer = state.timer === 0 ? 3 : (state.timer === 3 ? 10 : 0);
+      $('#btn-timer').classList.toggle('on', state.timer > 0);
+      $('#btn-timer').textContent = state.timer > 0 ? state.timer + 's' : '\u23F1';
+    });
+
+    $('#btn-double').addEventListener('click', () => {
+      state.double = !state.double;
+      state.firstShot = null;
+      $('#double-chip').classList.remove('show');
+      $('#btn-double').classList.toggle('on', state.double);
+      toast(state.double ? 'Double exposure ON — 2 shots lein' : 'Double exposure off');
+    });
+
+    $('#btn-picker').addEventListener('click', () => { renderPicker(); openSheet('#sheet-picker'); });
+    $('#btn-shop').addEventListener('click', openShop);
+    /* Navigate immediately, then fill the grid — never block the UI on storage. */
+    $('#btn-gallery').addEventListener('click', () => { show('screen-gallery'); renderGallery(); });
+    $('#btn-settings').addEventListener('click', () => { renderSettings(); show('screen-settings'); });
+    $('#btn-paywall').addEventListener('click', openPaywall);
+    $('#shop-pro-banner').addEventListener('click', openPaywall);
+    $('#btn-import').addEventListener('click', requestImport);
+
+    $$('[data-back]').forEach(b => b.addEventListener('click', () => {
+      const target = b.getAttribute('data-back');
+      show('screen-' + target);
+      if (target === 'viewfinder') { applyLiveLook(); }
+    }));
+
+    $$('[data-close-sheet]').forEach(b => b.addEventListener('click', () => closeSheet('#' + b.getAttribute('data-close-sheet'))));
+    $$('.sheet-backdrop').forEach(b => b.addEventListener('click', () => b.parentElement.classList.remove('show')));
+
+    $('#result-retake').addEventListener('click', () => { show('screen-viewfinder'); applyLiveLook(); });
+    $('#result-save').addEventListener('click', savePhoto);
+    $('#result-share').addEventListener('click', sharePhoto);
+    $('#btn-before').addEventListener('click', toggleBefore);
+
+    $('#paywall-buy').addEventListener('click', () => {
+      store.setPro(true);
+      renderSettings(); renderShop(); renderPicker();
+      toast('PRO unlocked — sab kuch khul gaya');
+      show('screen-viewfinder');
+    });
+    $('#paywall-restore').addEventListener('click', () => {
+      toast(store.isPro() ? 'PRO restore ho gaya' : 'Koi purchase nahi mili');
+    });
+
+    $('#set-datestamp').addEventListener('change', e => { const s = store.settings(); s.dateStamp = e.target.checked; store.saveSettings(s); });
+    $('#set-border').addEventListener('change', e => { const s = store.settings(); s.border = e.target.checked; store.saveSettings(s); });
+    $('#set-sound').addEventListener('change', e => { const s = store.settings(); s.sound = e.target.checked; store.saveSettings(s); });
+    $('#set-default').addEventListener('change', e => selectCamera(e.target.value));
+    $('#set-reset').addEventListener('click', () => {
+      if (confirm('App reset karein? Saari settings aur unlocks hat jayenge.')) {
+        store.reset(); renderSettings(); renderPicker(); renderShop(); toast('Reset ho gaya');
+      }
+    });
+
+    $('#import-input').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) importPhoto(f);
+      e.target.value = '';
+    });
+
+    $('#fallback-demo').addEventListener('click', startDemo);
+    $('#fallback-pick').addEventListener('click', requestImport);
+
+    document.addEventListener('keydown', e => {
+      const onVF = document.body.dataset.screen === 'screen-viewfinder';
+      if (e.code === 'Space' && onVF) { e.preventDefault(); shutterPressed(); }
+      if (e.code === 'Escape') { closeSheet('#sheet-picker'); $('#viewer').classList.remove('show'); }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopCamera();
+      else if (document.body.dataset.screen === 'screen-viewfinder' && !state.demo) startCamera();
+    });
+
+    window.addEventListener('beforeunload', stopCamera);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Boot
+   * ------------------------------------------------------------------ */
+  async function boot() {
+    Photos.open().catch(() => {});
+    const s = store.settings();
+    state.cameraId = (s.defaultCamera && CAMERAS.some(c => c.id === s.defaultCamera))
+      ? s.defaultCamera : 'nomo_135_b';
+    bind();
+    applyLiveLook();
+    show('screen-splash');
+    setTimeout(() => {
+      if (store.seen()) {
+        show('screen-viewfinder');
+        startCamera().then(applyLiveLook);
+      } else {
+        show('screen-onboarding');
+      }
+    }, 1400);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>

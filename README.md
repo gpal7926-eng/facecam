@@ -13,7 +13,8 @@ This repository contains **two complete implementations** of the same app:
 
 | Folder | What it is |
 |---|---|
-| [`web/`](web/) | A working HTML / CSS / JavaScript build you can open in any browser. This is the live preview — it uses `getUserMedia` for the viewfinder, a `<canvas>` film pipeline, and browser storage (`localStorage` + `IndexedDB`). |
+| [`FaceCam-preview.html`](FaceCam-preview.html) | The whole preview as one standalone file — double-click to run. |
+| [`web/`](web/) | The same app as a normal HTML / CSS / JavaScript project you can open in any browser. This is the live preview — it uses `getUserMedia` for the viewfinder, a `<canvas>` film pipeline, and browser storage (`localStorage` + `IndexedDB`). |
 | [`android/`](android/) | The native Android app: Kotlin + Jetpack Compose + CameraX, 100% on-device. Open it in Android Studio. |
 | [`docs/`](docs/) | The original feature spec and screenshots of the web build. |
 
@@ -47,6 +48,15 @@ Everything is local. There is no backend, no login, and no network call in the a
 ---
 
 ## Run the web preview
+
+### Just want to look at it?
+
+Open [`FaceCam-preview.html`](FaceCam-preview.html) — a single self-contained file with all
+the HTML, CSS and JavaScript inlined. Double-click it and it runs: no server, no build step,
+no dependencies. Without a webcam it starts in demo-scene mode, so every screen is still
+reachable.
+
+### Or serve the folder (recommended — this is what enables the real camera)
 
 No build step, no dependencies:
 
