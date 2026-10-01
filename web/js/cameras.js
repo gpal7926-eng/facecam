@@ -349,6 +349,120 @@ const CAMERAS = [
     leakColors: ['#8fd8ff', '#c6f0ff'],
     frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
     paid: false, price: 0
+  },
+
+  /* ================================================================== *
+   * VINTAGE — character cameras
+   * ================================================================== */
+  {
+    id: 'flash_cam', name: 'Flash Camera', tag: 'Harsh direct flash', group: 'vintage',
+    desc: 'Hard on-camera flash: bright centre, deep falloff, cool white light.',
+    filter: 'brightness(1.12) contrast(1.10) saturate(1.05)',
+    tone: { lift: -0.03, gamma: 1.10, gain: 1.10, warmth: -0.02, sat: 1.05 },
+    halation: 0.50, chroma: 0.20,
+    grain: 0.40, dust: 0.20, vignette: 0.62, leak: 0.10,
+    leakColors: ['#ffffff', '#dfe8ff'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'night_film', name: 'Night Film', tag: 'Low light', group: 'vintage',
+    desc: 'Deep blue night stock: crushed shadows, big grain and a soft glow.',
+    filter: 'contrast(1.18) saturate(0.95) hue-rotate(-8deg) brightness(0.92)',
+    tone: { lift: -0.06, gamma: 1.20, gain: 0.96, warmth: -0.06, sat: 0.95 },
+    halation: 0.80, chroma: 0.45,
+    grain: 0.60, dust: 0.30, vignette: 0.60, leak: 0.20,
+    leakColors: ['#4fa8ff', '#8fd0ff'],
+    frame: { style: 'thin', color: '#dfe8f5' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'cinematic', name: 'Cinematic Film', tag: 'Widescreen', group: 'vintage',
+    desc: 'Teal-and-orange movie grade with a letterbox frame.',
+    filter: 'contrast(1.16) saturate(1.06) hue-rotate(-12deg) brightness(0.99)',
+    tone: { lift: 0.0, gamma: 1.10, gain: 1.0, warmth: 0.05, sat: 1.04 },
+    halation: 0.60, chroma: 0.12,
+    grain: 0.24, dust: 0.12, vignette: 0.34, leak: 0.22,
+    leakColors: ['#ff8a5c', '#ffd08a'],
+    frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'light_leak', name: 'Light Leak Film', tag: 'Leaky roll', group: 'vintage',
+    desc: 'A badly-sealed roll: strong, random coloured light streaks.',
+    filter: 'contrast(1.04) saturate(1.10) brightness(1.05)',
+    tone: { lift: 0.04, gamma: 1.0, gain: 1.05, warmth: 0.06, sat: 1.10 },
+    halation: 0.70, chroma: 0.20,
+    grain: 0.32, dust: 0.20, vignette: 0.28, leak: 0.95,
+    leakColors: ['#ff5f6d', '#ffc371', '#c9a7ff'],
+    frame: { style: 'thin', color: '#fff7ea' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'dreamy', name: 'Dreamy Film', tag: 'Soft & pastel', group: 'vintage',
+    desc: 'Low-contrast pastel with a heavy bloom — soft, dreamy, airy.',
+    filter: 'contrast(0.94) saturate(1.05) brightness(1.10) blur(0.3px)',
+    tone: { lift: 0.07, gamma: 0.92, gain: 1.08, warmth: 0.03, sat: 1.06 },
+    halation: 0.90, chroma: 0.14,
+    grain: 0.20, dust: 0.10, vignette: 0.22, leak: 0.40,
+    leakColors: ['#ffd6ef', '#c9e7ff'],
+    frame: { style: 'thin', color: '#fdf5ff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'old_digital', name: 'Old Digital Camera', tag: 'Early digicam', group: 'vintage',
+    desc: 'Early-2000s compact: oversharpened, magenta cast, noisy sensor.',
+    filter: 'contrast(1.22) saturate(1.22) hue-rotate(6deg) brightness(1.03)',
+    tone: { lift: -0.02, gamma: 1.12, gain: 1.04, warmth: 0.04, sat: 1.20 },
+    halation: 0.40, chroma: 0.60,
+    grain: 0.55, dust: 0.30, vignette: 0.40, leak: 0.15,
+    leakColors: ['#ff77c8', '#ffd0f0'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'vhs', name: 'VHS / Retro', tag: 'Tape look', group: 'vintage',
+    desc: 'VHS tape: pumped colour, chroma bleed and a soft video glow.',
+    filter: 'contrast(1.14) saturate(1.40) hue-rotate(-6deg) brightness(1.04)',
+    tone: { lift: 0.02, gamma: 1.06, gain: 1.05, warmth: 0.02, sat: 1.35 },
+    halation: 0.60, chroma: 0.70,
+    grain: 0.50, dust: 0.20, vignette: 0.34, leak: 0.30,
+    leakColors: ['#4fd8ff', '#ff4fd8'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'kodak_warm', name: 'Kodak Warm', tag: 'Golden film', group: 'vintage',
+    desc: 'Warm, saturated consumer film — golden skin and rich colour.',
+    filter: 'sepia(0.16) saturate(1.22) contrast(1.06) brightness(1.04)',
+    tone: { lift: 0.02, gamma: 1.02, gain: 1.04, warmth: 0.075, sat: 1.20 },
+    halation: 0.40, chroma: 0.16,
+    grain: 0.26, dust: 0.14, vignette: 0.30, leak: 0.30,
+    leakColors: ['#ffcf7a', '#ff9d5c'],
+    frame: { style: 'thin', color: '#fbf3e3' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'cold_blue', name: 'Cold Blue Film', tag: 'Cool stock', group: 'vintage',
+    desc: 'Cool blue daylight stock — icy, clean and slightly muted.',
+    filter: 'contrast(1.08) saturate(0.98) hue-rotate(-10deg) brightness(1.00)',
+    tone: { lift: 0.03, gamma: 1.04, gain: 1.0, warmth: -0.075, sat: 1.0 },
+    halation: 0.34, chroma: 0.18,
+    grain: 0.30, dust: 0.16, vignette: 0.36, leak: 0.24,
+    leakColors: ['#8fd8ff', '#c6f0ff'],
+    frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'faded', name: 'Faded Film', tag: 'Washed out', group: 'vintage',
+    desc: 'Sun-faded, low-contrast film with lifted blacks and muted colour.',
+    filter: 'contrast(0.88) saturate(0.82) brightness(1.08)',
+    tone: { lift: 0.09, gamma: 0.90, gain: 1.06, warmth: 0.02, sat: 0.85 },
+    halation: 0.40, chroma: 0.12,
+    grain: 0.34, dust: 0.20, vignette: 0.30, leak: 0.35,
+    leakColors: ['#ffd9b0', '#cfe3ff'],
+    frame: { style: 'thin', color: '#f4efe6' }, dateStamp: true,
+    paid: false, price: 0
   }
 ];
 

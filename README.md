@@ -24,12 +24,14 @@ This repository contains **two complete implementations** of the same app:
 
 ---
 
-## Cameras — 33 looks in three families
+## Cameras — 43 looks in three families
 
-**Vintage — 18 looks.** The decades: **50s Kodachrome, 60s Ektachrome, 70s Faded, 80s Punch,
-90s Disposable**. Plus the film simulations: FaceCam 135 B / M / P, TOY F / K, ROMA, FR2,
-2007, EATS, INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. Each has its own colour curve,
-grain, light-leak behaviour, vignette and frame.
+**Vintage — 28 looks.** The decades: **50s Kodachrome, 60s Ektachrome, 70s Faded, 80s Punch,
+90s Disposable**. The film simulations: FaceCam 135 B / M / P, TOY F / K, ROMA, FR2,
+2007, EATS, INS 2 (instant), SWIRLY 2, Range 67 and Wide 17. Plus a set of character
+cameras: **Flash Camera, Night Film, Cinematic Film, Light Leak Film, Dreamy Film, Old
+Digital Camera, VHS / Retro, Kodak Warm, Cold Blue Film and Faded Film**. Each has its own
+colour curve, grain, light-leak behaviour, vignette and frame.
 
 **Black & White — 5 looks.** Classic silver-grey, high-contrast deep blacks, a warm
 sepia tone, a cool blue-toned mono and a faded low-contrast mono. These genuinely
@@ -46,6 +48,17 @@ leaks, no vignette, no frame — a clean photo.
 
 ## Features
 
+- **Photo editor** — a 12-slider editor on any captured photo (or a gallery shot): exposure,
+  brightness, contrast, saturation, temperature, tint, fade, grain, vignette, blur, sharpen
+  and light-leak, with live preview, reset and save.
+- **Capture controls** — front/back, flash OFF / ON / AUTO, 3s / 10s self-timer, 1x / 2x / 3x
+  zoom, exposure compensation, and tap-to-focus with a focus ring.
+- **Timestamp options** — retro orange date, date-only (YYYY/MM/DD or DD/MM/YYYY), date + time,
+  or your own custom text.
+- **Double exposure** — two shots merged with adjustable opacity and a blend mode
+  (screen / lighten / overlay / soft light).
+- **Export** — save or share as JPG or PNG, and export the original or the edited frame.
+- **Film grain** — per-camera grain plus a Fine / Medium / Heavy global setting.
 - **3D intro animation** — the app opens on a spinning dotted 3D globe, a camera-shutter
   flash, then the FaceCam wordmark. Tap to skip.
 - **Look intensity** — one slider scales the whole look (grain, leak, vignette, colour,

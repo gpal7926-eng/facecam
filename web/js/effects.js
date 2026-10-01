@@ -249,18 +249,30 @@ const Effects = (() => {
   }
 
   /* ---------- 9. date stamp ---------- */
-  function dateStamp(ctx, w, h) {
+  function dateStamp(ctx, w, h, opts) {
+    opts = opts || {};
+    const style = opts.stampStyle || 'retro';
+    if (style === 'off') return;
     const d = new Date();
-    const txt = "'" + String(d.getFullYear()).slice(2) + ' ' +
-      String(d.getMonth() + 1).padStart(2, '0') + ' ' +
-      String(d.getDate()).padStart(2, '0');
+    const pad = (n) => String(n).padStart(2, '0');
+    const ymd = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate());
+    const dmy = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+    const time = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const dateOnly = (opts.dateFormat === 'dmy') ? dmy : ymd;
+
+    let txt, color;
+    if (style === 'custom') { txt = (opts.customText || 'FaceCam'); color = '#ffb347'; }
+    else if (style === 'date') { txt = dateOnly; color = '#ffb347'; }
+    else if (style === 'datetime') { txt = dateOnly + '  ' + time; color = '#ffb347'; }
+    else { txt = "'" + String(d.getFullYear()).slice(2) + ' ' + pad(d.getMonth() + 1) + ' ' + pad(d.getDate()); color = '#ff7a18'; }
+
     const size = Math.max(14, Math.round(w * 0.045));
     ctx.save();
     ctx.font = 'bold ' + size + 'px "Courier New", monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.globalAlpha = 0.92;
-    ctx.fillStyle = '#ff7a18';
+    ctx.fillStyle = color;
     ctx.shadowColor = 'rgba(0,0,0,0.55)';
     ctx.shadowBlur = size * 0.35;
     ctx.fillText(txt, w - Math.round(w * 0.07), h - Math.round(h * 0.06));
@@ -285,17 +297,95 @@ const Effects = (() => {
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     const k = settings.intensity == null ? 1 : settings.intensity;
+    const gs = settings.grainScale == null ? 1 : settings.grainScale;
 
     applyTone(canvas, scaleTone(preset.tone, k));
     halation(ctx, w, h, (preset.halation || 0) * k * rand(0.7, 1.3));
-    grain(ctx, w, h, Math.min(1, preset.grain * k * rand(0.6, 1.4)));
+    grain(ctx, w, h, Math.min(1, preset.grain * k * gs * rand(0.6, 1.4)));
     chromaNoise(ctx, w, h, Math.min(1, (preset.chroma || 0) * k * rand(0.6, 1.4)));
     lightLeak(ctx, w, h, preset.leak * k * rand(0.4, 1.6), preset.leakColors);
     vignette(ctx, w, h, Math.min(1, preset.vignette * k * rand(0.7, 1.3)));
     dust(ctx, w, h, Math.min(1, preset.dust * k * rand(0.5, 1.5)));
     if (settings.border !== false) frame(ctx, w, h, preset.frame);
-    if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h);
+    if (settings.dateStamp && preset.dateStamp) dateStamp(ctx, w, h, settings);
     return canvas;
+  }
+
+  /* ---------- post-capture editor ----------
+   * A manual adjustment pipeline applied to an already-developed photo.
+   * Params (all optional, neutral defaults):
+   *   exposure  stops (-1..1)   brightness -0.3..0.3   contrast 0.5..1.8
+   *   saturation 0..2           temperature -1..1      tint -1..1
+   *   fade 0..1                 grain 0..1             vignette 0..1
+   *   blur 0..8 px              sharpen 0..2           leak 0..1
+   */
+  const DEFAULT_LEAK = ['#ff5f6d', '#ffc371', '#c9a7ff'];
+
+  function edit(src, p) {
+    p = p || {};
+    const w = src.width, h = src.height;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(src, 0, 0);
+
+    // 1. colour grade (per pixel)
+    const exp = Math.pow(2, p.exposure || 0);
+    const bright = p.brightness || 0;
+    const con = p.contrast == null ? 1 : p.contrast;
+    const sat = p.saturation == null ? 1 : p.saturation;
+    const temp = p.temperature || 0;
+    const tint = p.tint || 0;
+    const fade = p.fade || 0;
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+      r *= exp; g *= exp; b *= exp;
+      r += bright; g += bright; b += bright;
+      r += temp * 0.12 + tint * 0.06;
+      g += -tint * 0.10;
+      b += -temp * 0.12 + tint * 0.06;
+      r = (r - 0.5) * con + 0.5; g = (g - 0.5) * con + 0.5; b = (b - 0.5) * con + 0.5;
+      const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      if (fade > 0) { r = r * (1 - fade * 0.4) + fade * 0.20; g = g * (1 - fade * 0.4) + fade * 0.20; b = b * (1 - fade * 0.4) + fade * 0.20; }
+      d[i] = clamp01(r) * 255; d[i + 1] = clamp01(g) * 255; d[i + 2] = clamp01(b) * 255;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // 2. blur
+    if ((p.blur || 0) > 0) {
+      const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
+      const tc = tmp.getContext('2d');
+      tc.filter = 'blur(' + p.blur + 'px)';
+      tc.drawImage(out, 0, 0);
+      tc.filter = 'none';
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(tmp, 0, 0);
+    }
+
+    // 3. sharpen (unsharp mask)
+    if ((p.sharpen || 0) > 0) {
+      const soft = blurCopy(out, Math.max(1, Math.round(Math.min(w, h) * 0.004)));
+      const im2 = ctx.getImageData(0, 0, w, h);
+      const o = im2.data;
+      const sd = soft.getContext('2d').getImageData(0, 0, w, h).data;
+      for (let i = 0; i < o.length; i += 4) {
+        for (let c = 0; c < 3; c++) {
+          const v = o[i + c] + (o[i + c] - sd[i + c]) * p.sharpen * 1.4;
+          o[i + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+        }
+      }
+      ctx.putImageData(im2, 0, 0);
+    }
+
+    // 4. grain, 5. vignette, 6. light leak
+    if ((p.grain || 0) > 0) grain(ctx, w, h, Math.min(1, p.grain));
+    if ((p.vignette || 0) > 0) vignette(ctx, w, h, Math.min(1, p.vignette));
+    if ((p.leak || 0) > 0) lightLeak(ctx, w, h, p.leak, p.leakColors || DEFAULT_LEAK);
+
+    return out;
   }
 
   /* ---------- 10. FaceCam branding band, appended below the photo ---------- */
@@ -490,11 +580,11 @@ const Effects = (() => {
   }
 
   /* ---------- double exposure ---------- */
-  function blend(a, b) {
+  function blend(a, b, opacity, mode) {
     const ctx = a.getContext('2d');
     ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.globalAlpha = 0.85;
+    ctx.globalCompositeOperation = mode || 'screen';
+    ctx.globalAlpha = opacity == null ? 0.85 : opacity;
     ctx.drawImage(b, 0, 0, a.width, a.height);
     ctx.restore();
     return a;
@@ -506,7 +596,7 @@ const Effects = (() => {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   }
 
-  return { capture, process, withBranding, applyBeauty, blend, rand, pick, scaleTone };
+  return { capture, process, withBranding, applyBeauty, blend, edit, dateStamp, rand, pick, scaleTone };
 })();
 
 if (typeof module !== 'undefined') { module.exports = { Effects }; }

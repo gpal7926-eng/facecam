@@ -23,7 +23,8 @@
   const store = {
     settings() {
       return LS.get('settings', {
-        dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b'
+        dateStamp: true, border: true, sound: true, branding: true, defaultCamera: 'nomo_135_b',
+        stampStyle: 'retro', dateFormat: 'ymd', customText: '', grainScale: 1, format: 'jpg'
       });
     },
     saveSettings(s) { LS.set('settings', s); },
@@ -91,8 +92,11 @@
     mode: 'photo',
     speed: 1,
     intensity: 1,
+    zoom: 1,
+    exposure: 0,
     facing: 'environment',
     flash: false,
+    flashMode: 'off',
     torchAvailable: false,
     timer: 0,
     stream: null,
@@ -107,7 +111,10 @@
     recTimer: null,
     busy: false,
     camGen: 0,
-    viewerItem: null
+    viewerItem: null,
+    editBase: null,
+    editParams: null,
+    editTarget: null
   };
 
   const $ = (s) => document.querySelector(s);
@@ -261,8 +268,14 @@
 
   function applyLiveLook() {
     const cam = cameraById(state.cameraId);
-    $('#video').style.filter = cam.filter;
-    $('#demo-canvas').style.filter = cam.filter;
+    const expF = ' brightness(' + (1 + (state.exposure || 0) * 0.4).toFixed(3) + ')';
+    const z = state.zoom || 1;
+    ['#video', '#demo-canvas'].forEach(sel => {
+      const el = $(sel);
+      if (!el) return;
+      el.style.filter = cam.filter + expF;
+      el.style.transform = 'scale(' + z + ')';
+    });
     const vintage = groupOf(cam) !== 'beauty';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const f = $('#live-frame');
@@ -280,11 +293,23 @@
   function grabCanvas(extraFilter) {
     const cam = cameraById(state.cameraId);
     const source = state.demo ? state.demoSource : $('#video');
-    let w = source.videoWidth || source.width || 1080;
-    let h = source.videoHeight || source.height || 1440;
+    const sw = source.videoWidth || source.width || 1080;
+    const sh = source.videoHeight || source.height || 1440;
+    const z = state.zoom || 1;
+    const expF = ' brightness(' + (1 + (state.exposure || 0) * 0.4).toFixed(3) + ')';
+    let w = Math.round(sw / z), h = Math.round(sh / z);
     const maxDim = 1300;
     if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
-    return Effects.capture(source, w, h, cam.filter + (extraFilter || ''));
+    const sx = Math.round((sw - sw / z) / 2);
+    const sy = Math.round((sh - sh / z) / 2);
+    const cw = Math.round(sw / z), ch = Math.round(sh / z);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.filter = cam.filter + expF + (extraFilter || '');
+    ctx.drawImage(source, sx, sy, cw, ch, 0, 0, w, h);
+    ctx.filter = 'none';
+    return c;
   }
 
   function developShot(canvas, cam, settings) {
@@ -321,8 +346,9 @@
     state.busy = true;
     setTimeout(() => { state.busy = false; }, 350);
     const cam = cameraById(state.cameraId);
-    const useFlash = state.flash && !state.torchAvailable;
-    if (state.flash) screenFlash();
+    const flashOn = (state.flashMode === 'on' || state.flashMode === 'auto');
+    const useFlash = flashOn && !state.torchAvailable;
+    if (flashOn) screenFlash();
     const raw = grabCanvas(useFlash ? ' brightness(1.35) contrast(1.05)' : '');
     state.lastOriginal = raw.toDataURL('image/jpeg', 0.9);
 
@@ -335,7 +361,11 @@
         toast('Double exposure: pehla shot ho gaya');
         return;
       }
-      const merged = Effects.blend(state.firstShot, raw);
+      const opEl = $('#double-opacity');
+      const blEl = $('#double-blend');
+      const op = opEl ? parseFloat(opEl.value) : 0.85;
+      const mode = blEl ? blEl.value : 'screen';
+      const merged = Effects.blend(state.firstShot, raw, op, mode);
       state.firstShot = null;
       $('#double-chip').classList.remove('show');
       state.double = false;
@@ -478,11 +508,15 @@
       downloadUrl(state.last.url, 'FaceCam_' + Date.now() + '.webm');
       toast('Video gallery mein save ho gaya');
     } else {
+      const useOriginal = state.showingOriginal && state.lastOriginal;
+      const dataUrl = useOriginal ? state.lastOriginal : state.last.dataUrl;
       await Media.add({
-        kind: 'photo', dataUrl: state.last.dataUrl, camId: state.last.camId,
+        kind: 'photo', dataUrl, camId: state.last.camId,
         camName: state.last.camName, ts: Date.now()
       });
-      download(state.last.dataUrl, 'FaceCam_' + Date.now() + '.jpg');
+      const stamp = 'FaceCam_' + Date.now();
+      if (store.settings().format === 'png') downloadPng(dataUrl, stamp + '.png');
+      else download(dataUrl, stamp + '.jpg');
       toast('Gallery mein save ho gaya');
     }
     renderMiniThumb();
@@ -497,6 +531,17 @@
     const a = document.createElement('a');
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  function downloadPng(dataUrl, name) {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      download(c.toDataURL('image/png'), name);
+    };
+    img.src = dataUrl;
   }
 
   async function shareResult() {
@@ -708,6 +753,11 @@
     $('#set-border').checked = s.border !== false;
     $('#set-sound').checked = !!s.sound;
     $('#set-branding').checked = s.branding !== false;
+    $('#set-stamp-style').value = s.stampStyle || 'retro';
+    $('#set-date-format').value = s.dateFormat || 'ymd';
+    $('#set-custom-text').value = s.customText || '';
+    $('#set-grain').value = String(s.grainScale == null ? 1 : s.grainScale);
+    $('#set-format').value = s.format || 'jpg';
     const sel = $('#set-default');
     sel.innerHTML = '';
     ['beauty', 'bw', 'vintage'].forEach(g => {
@@ -744,6 +794,121 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Photo editor
+   * ------------------------------------------------------------------ */
+  const EDIT_CONTROLS = [
+    { key: 'exposure', label: 'Exposure', min: -1, max: 1, step: 0.05, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) },
+    { key: 'brightness', label: 'Brightness', min: -0.3, max: 0.3, step: 0.01, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) },
+    { key: 'contrast', label: 'Contrast', min: 0.5, max: 1.8, step: 0.02, def: 1, fmt: v => v.toFixed(2) },
+    { key: 'saturation', label: 'Saturation', min: 0, max: 2, step: 0.02, def: 1, fmt: v => v.toFixed(2) },
+    { key: 'temperature', label: 'Temperature', min: -1, max: 1, step: 0.05, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) },
+    { key: 'tint', label: 'Tint', min: -1, max: 1, step: 0.05, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) },
+    { key: 'fade', label: 'Fade', min: 0, max: 1, step: 0.02, def: 0, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'grain', label: 'Grain', min: 0, max: 1, step: 0.02, def: 0, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'vignette', label: 'Vignette', min: 0, max: 1, step: 0.02, def: 0, fmt: v => Math.round(v * 100) + '%' },
+    { key: 'blur', label: 'Blur', min: 0, max: 8, step: 0.5, def: 0, fmt: v => v.toFixed(1) + 'px' },
+    { key: 'sharpen', label: 'Sharpen', min: 0, max: 2, step: 0.05, def: 0, fmt: v => v.toFixed(2) },
+    { key: 'leak', label: 'Light leak', min: 0, max: 1, step: 0.02, def: 0, fmt: v => Math.round(v * 100) + '%' }
+  ];
+
+  function defaultEditParams() {
+    const p = {};
+    EDIT_CONTROLS.forEach(c => { p[c.key] = c.def; });
+    return p;
+  }
+
+  function syncEditSliders() {
+    $$('#edit-sliders input').forEach(inp => {
+      const key = inp.getAttribute('data-edit');
+      inp.value = state.editParams[key];
+      const v = $('#edit-sliders [data-val="' + key + '"]');
+      const ctl = EDIT_CONTROLS.filter(x => x.key === key)[0];
+      if (v && ctl) v.textContent = ctl.fmt(state.editParams[key]);
+    });
+  }
+
+  function buildEditSliders() {
+    const wrap = $('#edit-sliders');
+    if (!wrap || wrap.dataset.built) return;
+    wrap.dataset.built = '1';
+    EDIT_CONTROLS.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'edit-ctl';
+      row.innerHTML = '<label>' + c.label + '</label>' +
+        '<input type="range" data-edit="' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + c.def + '">' +
+        '<span class="edit-val" data-val="' + c.key + '"></span>';
+      wrap.appendChild(row);
+      const input = row.querySelector('input');
+      const val = row.querySelector('.edit-val');
+      val.textContent = c.fmt(c.def);
+      input.addEventListener('input', () => {
+        state.editParams[c.key] = parseFloat(input.value);
+        val.textContent = c.fmt(parseFloat(input.value));
+        scheduleEditRender();
+      });
+    });
+  }
+
+  let editRAF = null;
+  function scheduleEditRender() {
+    if (editRAF) return;
+    editRAF = requestAnimationFrame(() => { editRAF = null; renderEditPreview(); });
+  }
+
+  function renderEditPreview() {
+    if (!state.editBase || !state.editParams) return;
+    const out = Effects.edit(state.editBase, state.editParams);
+    const dst = $('#edit-canvas');
+    dst.width = out.width; dst.height = out.height;
+    dst.getContext('2d').drawImage(out, 0, 0);
+  }
+
+  function openEditor(source, target) {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const maxDim = 1200;
+      if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      state.editBase = c;
+      state.editParams = defaultEditParams();
+      state.editTarget = target || 'result';
+      buildEditSliders();
+      syncEditSliders();
+      renderEditPreview();
+      if (target === 'viewer') $('#viewer').classList.remove('show');
+      show('screen-editor');
+    };
+    img.onerror = () => toast('Image load nahi ho payi');
+    img.src = source;
+  }
+
+  function saveEdit() {
+    if (!state.editBase || !state.editParams) return;
+    const out = Effects.edit(state.editBase, state.editParams);
+    const dataUrl = out.toDataURL('image/jpeg', 0.94);
+    if (state.editTarget === 'viewer' && state.viewerItem) {
+      const p = state.viewerItem;
+      Media.add({ kind: 'photo', dataUrl, camId: p.camId, camName: p.camName, ts: Date.now() });
+      show('screen-gallery');
+      renderGallery();
+      renderMiniThumb();
+      toast('Edited copy gallery mein save ho gayi');
+    } else {
+      if (state.last) state.last.dataUrl = dataUrl;
+      $('#result-img').src = dataUrl;
+      state.showingOriginal = false;
+      $('#btn-before').textContent = 'Original';
+      $('#btn-before').classList.remove('on');
+      show('screen-result');
+      toast('Edit apply ho gaya');
+    }
+    state.editBase = null; state.editParams = null; state.editTarget = null;
+  }
+
+  /* ------------------------------------------------------------------ *
    * Wiring
    * ------------------------------------------------------------------ */
   function bind() {
@@ -764,10 +929,14 @@
     });
 
     $('#btn-flash').addEventListener('click', async () => {
-      state.flash = !state.flash;
-      $('#btn-flash').classList.toggle('on', state.flash);
+      const order = ['off', 'on', 'auto'];
+      state.flashMode = order[(order.indexOf(state.flashMode) + 1) % 3];
+      state.flash = state.flashMode !== 'off';
+      const b = $('#btn-flash');
+      b.classList.toggle('on', state.flash);
+      b.textContent = state.flashMode === 'auto' ? 'A' : '\u26A1';
       if (state.flash) await applyTorch();
-      toast(state.flash ? (state.torchAvailable ? 'Flash (torch) on' : 'Flash on — screen flash') : 'Flash off');
+      toast(state.flashMode === 'off' ? 'Flash off' : (state.flashMode === 'auto' ? 'Flash auto' : 'Flash on'));
     });
 
     $('#btn-timer').addEventListener('click', () => {
@@ -781,6 +950,7 @@
       state.firstShot = null;
       $('#double-chip').classList.remove('show');
       $('#btn-double').classList.toggle('on', state.double);
+      $('#double-opts').classList.toggle('show', state.double);
       toast(state.double ? 'Double exposure ON' : 'Double exposure off');
     });
 
@@ -819,6 +989,66 @@
         if (v) v.textContent = Math.round(state.intensity * 100) + '%';
       });
     }
+
+    // zoom
+    $$('#zoom-row .zoom-chip').forEach(b => b.addEventListener('click', () => {
+      state.zoom = parseFloat(b.getAttribute('data-zoom'));
+      $$('#zoom-row .zoom-chip').forEach(x => x.classList.toggle('active', x === b));
+      applyLiveLook();
+    }));
+
+    // exposure compensation
+    const expCtl = $('#exposure');
+    if (expCtl) expCtl.addEventListener('input', () => {
+      state.exposure = parseFloat(expCtl.value);
+      const v = $('#exposure-val');
+      if (v) v.textContent = (state.exposure > 0 ? '+' : '') + state.exposure.toFixed(1);
+      applyLiveLook();
+    });
+
+    // tap to focus
+    const vf = $('.vf');
+    if (vf) vf.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
+      const ring = $('#focus-ring');
+      if (!ring) return;
+      const r = vf.getBoundingClientRect();
+      ring.style.left = (e.clientX - r.left) + 'px';
+      ring.style.top = (e.clientY - r.top) + 'px';
+      ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
+      try {
+        const track = state.stream && state.stream.getVideoTracks()[0];
+        const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+        if (caps && caps.pointsOfInterest) {
+          track.applyConstraints({ advanced: [{ pointsOfInterest: [{ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }] }] });
+        }
+      } catch (err) {}
+    });
+
+    // editor entry points
+    $('#result-edit').addEventListener('click', () => {
+      if (state.last && state.last.kind === 'photo') openEditor(state.last.dataUrl, 'result');
+    });
+    $('#viewer-edit').addEventListener('click', () => {
+      const p = state.viewerItem;
+      if (p && p.kind === 'photo') openEditor(p.dataUrl, 'viewer');
+    });
+    $('#edit-back').addEventListener('click', () => {
+      show(state.editTarget === 'viewer' ? 'screen-gallery' : 'screen-result');
+    });
+    $('#edit-reset').addEventListener('click', () => {
+      state.editParams = defaultEditParams();
+      syncEditSliders();
+      renderEditPreview();
+    });
+    $('#edit-save').addEventListener('click', saveEdit);
+
+    // new settings controls
+    $('#set-stamp-style').addEventListener('change', e => { const s = store.settings(); s.stampStyle = e.target.value; store.saveSettings(s); });
+    $('#set-date-format').addEventListener('change', e => { const s = store.settings(); s.dateFormat = e.target.value; store.saveSettings(s); });
+    $('#set-custom-text').addEventListener('input', e => { const s = store.settings(); s.customText = e.target.value; store.saveSettings(s); });
+    $('#set-grain').addEventListener('change', e => { const s = store.settings(); s.grainScale = parseFloat(e.target.value); store.saveSettings(s); });
+    $('#set-format').addEventListener('change', e => { const s = store.settings(); s.format = e.target.value; store.saveSettings(s); });
 
     $('#live-captions').addEventListener('change', e => {
       if (e.target.checked) {

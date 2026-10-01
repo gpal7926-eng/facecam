@@ -52,6 +52,7 @@
       <div id="live-frame" class="live-frame"></div>
       <div id="double-chip" class="double-chip"><img alt="First shot"><span>1st shot</span></div>
       <div id="flash-overlay"></div>
+      <div id="focus-ring" class="focus-ring"></div>
 
       <canvas id="pro-canvas" class="pro-canvas"></canvas>
       <div id="pro-grid" class="pro-grid"></div>
@@ -141,6 +142,29 @@
           </div>
         </div>
 
+        <div class="zoom-row" id="zoom-row">
+          <button class="zoom-chip active" data-zoom="1">1x</button>
+          <button class="zoom-chip" data-zoom="2">2x</button>
+          <button class="zoom-chip" data-zoom="3">3x</button>
+        </div>
+
+        <div class="exp-row" id="exp-row">
+          <span class="exp-label">EXP</span>
+          <input type="range" id="exposure" min="-1" max="1" step="0.05" value="0" aria-label="Exposure">
+          <span class="exp-val" id="exposure-val">0.0</span>
+        </div>
+
+        <div class="double-opts" id="double-opts">
+          <span class="exp-label">2x</span>
+          <input type="range" id="double-opacity" min="0.2" max="1" step="0.05" value="0.85" aria-label="Double exposure opacity">
+          <select id="double-blend">
+            <option value="screen">Screen</option>
+            <option value="lighten">Lighten</option>
+            <option value="overlay">Overlay</option>
+            <option value="soft-light">Soft light</option>
+          </select>
+        </div>
+
         <div class="shutter-row">
           <button class="mini-thumb" id="btn-gallery-mini" title="Gallery"><span></span></button>
           <button class="shutter" id="btn-shutter" title="Shutter"><span></span></button>
@@ -174,7 +198,24 @@
         <button class="btn" id="result-retake">Retake</button>
         <button class="btn primary" id="result-save">Save</button>
         <button class="btn" id="result-share">Share</button>
+        <button class="btn" id="result-edit">Edit</button>
         <button class="btn" id="btn-before">Original</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Photo editor -->
+  <section class="screen" id="screen-editor">
+    <div class="topbar">
+      <button class="icon-btn" id="edit-back">&#8592;</button>
+      <h1>Edit</h1>
+      <button class="icon-btn" id="edit-reset" title="Reset">&#8634;</button>
+    </div>
+    <div class="screen-body edit-body">
+      <div class="edit-preview"><canvas id="edit-canvas"></canvas></div>
+      <div class="edit-sliders" id="edit-sliders"></div>
+      <div class="edit-actions">
+        <button class="btn primary" id="edit-save">Save</button>
       </div>
     </div>
   </section>
@@ -218,6 +259,27 @@
     <div class="screen-body">
       <div class="settings-list">
         <label class="row"><span>Date stamp</span><input type="checkbox" id="set-datestamp"></label>
+        <label class="row"><span>Stamp style</span><select id="set-stamp-style">
+          <option value="retro">Retro '99 01 05</option>
+          <option value="date">Date only</option>
+          <option value="datetime">Date + time</option>
+          <option value="custom">Custom text</option>
+          <option value="off">Off</option>
+        </select></label>
+        <label class="row"><span>Date format</span><select id="set-date-format">
+          <option value="ymd">YYYY/MM/DD</option>
+          <option value="dmy">DD/MM/YYYY</option>
+        </select></label>
+        <label class="row"><span>Custom text</span><input type="text" id="set-custom-text" maxlength="24" placeholder="FaceCam"></label>
+        <label class="row"><span>Film grain</span><select id="set-grain">
+          <option value="0.6">Fine</option>
+          <option value="1">Medium</option>
+          <option value="1.5">Heavy</option>
+        </select></label>
+        <label class="row"><span>Export format</span><select id="set-format">
+          <option value="jpg">JPG</option>
+          <option value="png">PNG</option>
+        </select></label>
         <label class="row"><span>Border / frame</span><input type="checkbox" id="set-border"></label>
         <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
         <label class="row"><span>FaceCam watermark</span><input type="checkbox" id="set-branding"></label>
@@ -242,6 +304,7 @@
     </div>
     <div class="viewer-actions">
       <button class="btn" id="viewer-close">Close</button>
+      <button class="btn" id="viewer-edit">Edit</button>
       <button class="btn" id="viewer-share">Share</button>
       <button class="btn danger" id="viewer-delete">Delete</button>
     </div>

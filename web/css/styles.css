@@ -533,3 +533,55 @@ body[data-family="beauty"]  { --grad-active: var(--grad-beauty); }
 .intensity-label { font-size: 10.5px; font-weight: 800; letter-spacing: .8px; color: var(--muted); text-transform: uppercase; }
 .intensity-row input[type="range"] { flex: 1; height: 22px; accent-color: #c084fc; }
 .intensity-val { font-size: 11px; font-weight: 800; color: var(--text); min-width: 42px; text-align: right; }
+
+/* ---------- zoom / exposure / double-exposure controls ---------- */
+.zoom-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.zoom-chip {
+  appearance: none; border: 1px solid var(--line); background: var(--glass);
+  color: var(--muted); font-family: inherit; font-size: 12px; font-weight: 800;
+  width: 44px; padding: 6px 0; border-radius: 999px; cursor: pointer;
+  backdrop-filter: blur(10px); transition: all .15s ease;
+}
+.zoom-chip.active { background: var(--grad-active, var(--grad)); color: #fff; border-color: transparent; }
+
+.exp-row { display: flex; align-items: center; gap: 10px; padding: 0 8px 8px; }
+.exp-label { font-size: 10.5px; font-weight: 800; letter-spacing: .8px; color: var(--muted); text-transform: uppercase; }
+.exp-row input[type="range"] { flex: 1; height: 22px; accent-color: #c084fc; }
+.exp-val { font-size: 11px; font-weight: 800; color: var(--text); min-width: 34px; text-align: right; }
+
+.double-opts { display: none; align-items: center; gap: 10px; padding: 0 8px 8px; }
+.double-opts.show { display: flex; }
+.double-opts input[type="range"] { flex: 1; height: 22px; accent-color: #c084fc; }
+.double-opts select {
+  background: var(--glass-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 6px 9px; font-size: 12px; font-family: inherit;
+}
+
+/* ---------- tap-to-focus ring ---------- */
+.focus-ring {
+  position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px;
+  border: 2px solid #ffd76a; border-radius: 12px; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 14px rgba(255,215,106,.5);
+}
+.focus-ring.go { animation: focusPulse .9s ease forwards; }
+@keyframes focusPulse {
+  0%   { opacity: 0; transform: scale(1.5); }
+  25%  { opacity: 1; transform: scale(1); }
+  70%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* ---------- photo editor ---------- */
+.edit-body { display: flex; flex-direction: column; gap: 14px; }
+.edit-preview { display: flex; justify-content: center; }
+.edit-preview canvas {
+  max-width: 100%; max-height: 42vh; border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(0,0,0,.55);
+}
+.edit-sliders { display: flex; flex-direction: column; gap: 10px; }
+.edit-ctl { display: grid; grid-template-columns: 92px 1fr 52px; align-items: center; gap: 10px; }
+.edit-ctl label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.edit-ctl input[type="range"] { width: 100%; accent-color: #c084fc; }
+.edit-val { font-size: 11px; font-weight: 800; color: var(--text); text-align: right; }
+.edit-actions { display: flex; justify-content: center; }
+.edit-actions .btn { min-width: 160px; }
