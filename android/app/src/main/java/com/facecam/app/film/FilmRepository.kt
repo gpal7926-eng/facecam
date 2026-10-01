@@ -6,8 +6,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Loads the camera presets from `assets/cameras/*.json` - the vintage film
- * cameras, the black-and-white cameras and the Beauty cameras.
+ * Loads the camera presets from the `cameras` assets folder (one JSON file
+ * per camera) - the vintage film cameras, the black-and-white cameras and the
+ * Beauty cameras.
  *
  * Parsing is defensive: a malformed preset is skipped rather than crashing the
  * app, and a built-in fallback list is used if the assets folder is missing.

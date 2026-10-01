@@ -260,9 +260,9 @@ object AnalogEffects {
                 val rn = (comp(n, 16) + comp(s, 16) + comp(e, 16) + comp(wst, 16)) / 4
                 val gn = (comp(n, 8) + comp(s, 8) + comp(e, 8) + comp(wst, 8)) / 4
                 val bn = (comp(n, 0) + comp(s, 0) + comp(e, 0) + comp(wst, 0)) / 4
-                val r = clamp(rc + (rc - rn) * amount)
-                val g = clamp(gc + (gc - gn) * amount)
-                val b = clamp(bc + (bc - bn) * amount)
+                val r = clamp((rc + (rc - rn) * amount).toInt())
+                val g = clamp((gc + (gc - gn) * amount).toInt())
+                val b = clamp((bc + (bc - bn) * amount).toInt())
                 result[i] = Color.argb(comp(c, 24), r, g, b)
             }
         }

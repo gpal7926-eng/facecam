@@ -379,8 +379,6 @@ object BeautyEffects {
 
     private fun clamp(v: Int): Int = min(255, max(0, v))
 
-    companion object {
-        /** Smoothing strength kept OUTSIDE the detected face (relative to full). */
-        private const val OUTSIDE_FACE_WEIGHT = 0.35f
-    }
+    /** Smoothing strength kept OUTSIDE the detected face (relative to full). */
+    private const val OUTSIDE_FACE_WEIGHT = 0.35f
 }

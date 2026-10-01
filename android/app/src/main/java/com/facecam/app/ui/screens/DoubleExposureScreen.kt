@@ -54,9 +54,12 @@ fun DoubleExposureScreen(
     val previewView = remember { PreviewView(context) }
     var firstShot by remember { mutableStateOf<Bitmap?>(null) }
 
+    // Read the lifecycle owner in composable scope (cannot be read inside the
+    // LaunchedEffect block, which is not a @Composable context).
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.LaunchedEffect(Unit) {
         cameraController.bind(
-            lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current,
+            lifecycleOwner = lifecycleOwner,
             previewView = previewView,
             lensFacing = com.facecam.app.camera.LensFacing.BACK,
             onReady = { }

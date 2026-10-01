@@ -229,7 +229,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlobe(
     // Latitude rings (parallels).
     val parallels = 9
     for (i in 1 until parallels) {
-        val lat = (-PI / 2f) + (i.toFloat() / parallels) * PI.toFloat()
+        val lat = (-PI.toFloat() / 2f) + (i.toFloat() / parallels) * PI.toFloat()
         drawRing(
             cx = cx, cy = cy, radius = radius, spin = spin, lat = lat,
             cosTilt = cosTilt, sinTilt = sinTilt, focal = focal, alpha = alpha,
@@ -261,7 +261,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRing(
         val phi: Float
         val theta: Float
         if (isMeridian) {
-            phi = (-PI / 2f) + f * PI.toFloat()
+            phi = (-PI.toFloat() / 2f) + f * PI.toFloat()
             theta = lon + spin
         } else {
             phi = lat

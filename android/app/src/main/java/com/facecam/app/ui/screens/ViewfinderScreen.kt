@@ -183,9 +183,12 @@ fun ViewfinderScreen(
         }
     }
 
+    // Read the lifecycle owner in composable scope: it cannot be read inside a
+    // LaunchedEffect block (that is not a @Composable context).
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     LaunchedEffect(cameraState.lensFacing) {
         cameraController.bind(
-            lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current,
+            lifecycleOwner = lifecycleOwner,
             previewView = previewView,
             lensFacing = cameraState.lensFacing,
             videoCapture = videoRecorder.videoCapture,
