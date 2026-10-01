@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    // Required for Compose with Kotlin 2.0+ (see the root build file).
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // ---------------------------------------------------------------------------
