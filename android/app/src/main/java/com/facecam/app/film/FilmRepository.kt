@@ -6,9 +6,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Loads the camera presets from `assets/cameras/*.json` - 20 vintage film
- * cameras (including the 1950s-1990s decade looks and the B&W stocks) plus 9
- * Beauty cameras.
+ * Loads the camera presets from `assets/cameras/*.json` - the vintage film
+ * cameras, the black-and-white cameras and the Beauty cameras.
  *
  * Parsing is defensive: a malformed preset is skipped rather than crashing the
  * app, and a built-in fallback list is used if the assets folder is missing.
@@ -54,11 +53,18 @@ class FilmRepository(private val context: Context) {
     /** Only the vintage film cameras, in display order. */
     fun vintage(): List<FilmPreset> = all().filter { it.isVintage }
 
+    /** Only the black-and-white cameras, in display order. */
+    fun bw(): List<FilmPreset> = all().filter { it.isBw }
+
     /** Only the Beauty cameras, in display order. */
     fun beauty(): List<FilmPreset> = all().filter { it.isBeauty }
 
-    /** Cameras of a given group ("vintage" or "beauty"). */
+    /** Cameras of a given group ("vintage", "bw" or "beauty"). */
     fun ofGroup(group: String): List<FilmPreset> = all().filter { it.group == group }
+
+    /** The three families in display order, each paired with its cameras. */
+    fun byFamily(): List<Pair<String, List<FilmPreset>>> =
+        CameraGroup.ordered.map { it to ofGroup(it) }
 
     fun get(id: String): FilmPreset? = presets[id]
 

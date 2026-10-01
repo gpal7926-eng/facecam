@@ -8,15 +8,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, "web")
 OUT = os.path.join(ROOT, "FaceCam-preview.html")
 
-JS_ORDER = ["cameras.js", "effects.js", "video.js", "pro.js", "app.js"]
+JS_ORDER = ["cameras.js", "effects.js", "video.js", "intro.js", "pro.js", "app.js"]
 
 HEADER = """<!DOCTYPE html>
 <!--
   FaceCam - standalone single-file web preview.
   HTML + CSS + JavaScript in one file: no build, no dependencies, no network.
-  19 vintage film cameras (incl. 1950s-1990s decade looks + B&W) and 9 beauty
-  cameras, photo + video, slow motion, subtitles, manual camera mode, 3D intro.
-  Free, no paywall, no ads.
+  33 cameras (18 vintage film incl. the 50s-90s decades, 5 black & white,
+  10 beauty), photo + video, slow motion, subtitles, a 3D globe intro, a
+  look-intensity slider and manual camera mode. Free, no paywall, no ads.
 -->
 """
 
@@ -30,7 +30,6 @@ def main():
     html = read(os.path.join(WEB, "index.html"))
     css = read(os.path.join(WEB, "css", "styles.css"))
 
-    # drop the old doctype/comment lines from the template and prepend ours
     html = re.sub(r"^<!DOCTYPE html>\s*", "", html, count=1)
 
     html = html.replace(

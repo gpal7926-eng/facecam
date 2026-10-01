@@ -19,7 +19,6 @@ val Magenta = Color(0xFFE24BC0)
 val Coral = Color(0xFFFF6B6B)
 val Gold = Color(0xFFF0B45C)
 val GoldDeep = Color(0xFFC98A2E)
-val Cyan = Color(0xFF22D3EE)
 
 // Neutrals.
 val Cream = Color(0xFFF6F3EE)
@@ -37,9 +36,6 @@ val FilmBlack = Ink
 
 /** The signature accent gradient used for buttons, chips and highlights. */
 val FaceCamGradient = Brush.linearGradient(listOf(Violet, Magenta, Coral))
-
-/** The three-stop accent gradient (violet -> magenta -> cyan) used by the intro. */
-val FaceCamGradientTri = Brush.linearGradient(listOf(Violet, Magenta, Cyan))
 
 /** A softer gradient for large surfaces / headers. */
 val FaceCamGradientSoft = Brush.linearGradient(

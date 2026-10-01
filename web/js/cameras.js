@@ -1,19 +1,19 @@
 /* FaceCam — camera presets.
  *
- * Two families:
- *   group: 'vintage'  film simulations — grain, leaks, vignette, frames.
- *                     Includes the decade looks (1950s…1990s) and B&W.
- *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural.
+ * Three families:
+ *   group: 'vintage'  film simulations — grain, leaks, vignette, frames
+ *   group: 'bw'       black & white — desaturated, silver-grain
+ *   group: 'beauty'   clean, iPhone-like enhance — smooth, sharp, natural
  *
- * Vintage presets use: filter, tone, halation, chroma, grain, dust, vignette,
- *                      leak, frame, dateStamp
- * Beauty presets use:  filter, beauty { exposure, contrast, sat, warmth,
- *                      smooth, sharpen, glow }
+ * vintage / bw use: filter, tone, halation, chroma, grain, dust, vignette,
+ *                   leak, frame, dateStamp
+ * beauty uses:      filter, beauty { exposure, contrast, sat, warmth,
+ *                   smooth, sharpen, glow }
  */
 const CAMERAS = [
-  /* ------------------------------------------------------------------ *
-   * BEAUTY — clean, natural, iPhone-like
-   * ------------------------------------------------------------------ */
+  /* ================================================================== *
+   * BEAUTY — clean, natural, phone-camera enhance
+   * ================================================================== */
   {
     id: 'beauty_natural', name: 'Natural', tag: 'Clean & true', group: 'beauty',
     desc: 'Balanced, true-to-life enhance. Soft skin, crisp detail, no colour shift.',
@@ -43,44 +43,169 @@ const CAMERAS = [
     paid: false, price: 0
   },
   {
-    id: 'beauty_soft', name: 'Soft Glam', tag: 'Dreamy skin', group: 'beauty',
-    desc: 'Heavy, silky skin smoothing with a strong soft-glow — a glamour look.',
-    filter: 'contrast(1.03) saturate(1.06) brightness(1.07)',
-    beauty: { exposure: 0.075, contrast: 1.05, sat: 1.09, warmth: 0.060, smooth: 1.15, sharpen: 0.55, glow: 0.72 },
+    id: 'beauty_soft', name: 'Soft', tag: 'Dreamy', group: 'beauty',
+    desc: 'Dreamy, low-contrast glow with the strongest skin softening.',
+    filter: 'contrast(0.96) saturate(1.02) brightness(1.08)',
+    beauty: { exposure: 0.075, contrast: 0.97, sat: 1.02, warmth: 0.045, smooth: 1.00, sharpen: 0.45, glow: 0.70 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_vivid', name: 'Vivid Pop', tag: 'Punchy colour', group: 'beauty',
-    desc: 'Bright, saturated and crisp — colours that jump off the screen.',
-    filter: 'contrast(1.12) saturate(1.26) brightness(1.05)',
-    beauty: { exposure: 0.050, contrast: 1.16, sat: 1.32, warmth: 0.020, smooth: 0.80, sharpen: 0.98, glow: 0.34 },
+    id: 'beauty_glow', name: 'Glow', tag: 'Lit from within', group: 'beauty',
+    desc: 'Bright with a strong bloom — that lit-from-within look.',
+    filter: 'contrast(1.03) saturate(1.10) brightness(1.12)',
+    beauty: { exposure: 0.120, contrast: 1.04, sat: 1.10, warmth: 0.030, smooth: 0.84, sharpen: 0.55, glow: 0.85 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_cool', name: 'Cool Clean', tag: 'Crisp & cool', group: 'beauty',
-    desc: 'A cool white balance with clean, sharp detail. Modern and airy.',
-    filter: 'contrast(1.06) saturate(1.02) brightness(1.06) hue-rotate(-3deg)',
-    beauty: { exposure: 0.080, contrast: 1.09, sat: 1.00, warmth: -0.050, smooth: 0.85, sharpen: 0.82, glow: 0.34 },
+    id: 'beauty_radiance', name: 'Radiance', tag: 'Crisp & clear', group: 'beauty',
+    desc: 'Crisp, clear, bright skin with sharp detail throughout.',
+    filter: 'contrast(1.10) saturate(1.08) brightness(1.06)',
+    beauty: { exposure: 0.060, contrast: 1.12, sat: 1.08, warmth: 0.020, smooth: 0.74, sharpen: 1.00, glow: 0.34 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_golden', name: 'Golden Hour', tag: 'Sunset glow', group: 'beauty',
-    desc: 'Warm golden light with a rich highlight glow — the hour before dusk.',
-    filter: 'sepia(0.12) saturate(1.13) brightness(1.06)',
-    beauty: { exposure: 0.090, contrast: 1.05, sat: 1.15, warmth: 0.120, smooth: 0.95, sharpen: 0.70, glow: 0.78 },
+    id: 'beauty_matte', name: 'Matte', tag: 'Soft matte', group: 'beauty',
+    desc: 'Lifted blacks and a matte finish, with natural, even skin.',
+    filter: 'contrast(0.98) saturate(1.04) brightness(1.05)',
+    beauty: { exposure: 0.085, contrast: 0.99, sat: 1.04, warmth: 0.035, smooth: 0.88, sharpen: 0.62, glow: 0.38 },
     paid: false, price: 0
   },
   {
-    id: 'beauty_mono', name: 'Mono Beauty', tag: 'Clean B&W', group: 'beauty', bw: true,
-    desc: 'A clean black-and-white beauty look: smooth skin, crisp detail, no colour.',
-    filter: 'grayscale(1) contrast(1.08) brightness(1.06)',
-    beauty: { exposure: 0.080, contrast: 1.12, sat: 0.0, warmth: 0.0, smooth: 0.95, sharpen: 0.86, glow: 0.46 },
+    id: 'beauty_clean', name: 'Clean', tag: 'Neutral & even', group: 'beauty',
+    desc: 'Neutral, true-to-life skin with a light, even enhance.',
+    filter: 'contrast(1.03) saturate(1.02) brightness(1.05)',
+    beauty: { exposure: 0.060, contrast: 1.04, sat: 1.04, warmth: 0.0, smooth: 0.72, sharpen: 0.82, glow: 0.18 },
+    paid: false, price: 0
+  },
+  {
+    id: 'beauty_rich', name: 'Rich', tag: 'Polished colour', group: 'beauty',
+    desc: 'Warmer, richer colour and contrast for a polished portrait.',
+    filter: 'sepia(0.08) saturate(1.16) contrast(1.08) brightness(1.06)',
+    beauty: { exposure: 0.120, contrast: 1.16, sat: 1.22, warmth: 0.100, smooth: 0.78, sharpen: 0.92, glow: 0.40 },
     paid: false, price: 0
   },
 
-  /* ------------------------------------------------------------------ *
-   * VINTAGE — film simulations
-   * ------------------------------------------------------------------ */
+  /* ================================================================== *
+   * BLACK & WHITE
+   * ================================================================== */
+  {
+    id: 'bw_classic', name: 'B&W Classic', tag: 'Silver grey', group: 'bw',
+    desc: 'Balanced silver-grey monochrome with medium contrast.',
+    filter: 'grayscale(1) contrast(1.06) brightness(1.02)',
+    tone: { lift: 0.015, gamma: 1.04, gain: 1.01, warmth: 0, sat: 0 },
+    halation: 0.30, chroma: 0,
+    grain: 0.34, dust: 0.20, vignette: 0.34, leak: 0.10,
+    leakColors: ['#dddddd', '#bbbbbb'],
+    frame: { style: 'thin', color: '#f2f2f2' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'bw_high', name: 'B&W Contrast', tag: 'Deep blacks', group: 'bw',
+    desc: 'High-contrast monochrome. Punchy blacks, bright whites.',
+    filter: 'grayscale(1) contrast(1.35) brightness(1.00)',
+    tone: { lift: -0.045, gamma: 1.22, gain: 1.02, warmth: 0, sat: 0 },
+    halation: 0.22, chroma: 0,
+    grain: 0.46, dust: 0.26, vignette: 0.48, leak: 0.08,
+    leakColors: ['#ffffff', '#cccccc'],
+    frame: { style: 'thick', color: '#ffffff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'bw_warm', name: 'B&W Sepia', tag: 'Warm tone', group: 'bw',
+    desc: 'Warm sepia-toned monochrome — an old print look.',
+    filter: 'grayscale(1) sepia(0.55) contrast(1.02) brightness(1.04)',
+    tone: { lift: 0.045, gamma: 1.00, gain: 1.03, warmth: 0.075, sat: 0.18 },
+    halation: 0.42, chroma: 0.10,
+    grain: 0.40, dust: 0.30, vignette: 0.44, leak: 0.20,
+    leakColors: ['#e8c9a0', '#d9b183'],
+    frame: { style: 'thin', color: '#f4ead9' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'bw_cool', name: 'B&W Cool', tag: 'Cool mono', group: 'bw',
+    desc: 'Cool, blue-toned monochrome with a clean modern feel.',
+    filter: 'grayscale(1) contrast(1.06) brightness(1.02)',
+    tone: { lift: 0.005, gamma: 1.06, gain: 1.0, warmth: -0.03, sat: 0 },
+    halation: 0.28, chroma: 0,
+    grain: 0.30, dust: 0.16, vignette: 0.30, leak: 0.06,
+    leakColors: ['#cfe8ff', '#9fd0ff'],
+    frame: { style: 'thin', color: '#eef2f6' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'bw_fade', name: 'B&W Fade', tag: 'Faded mono', group: 'bw',
+    desc: 'Low-contrast faded monochrome with soft lifted blacks.',
+    filter: 'grayscale(1) contrast(0.86) brightness(1.06)',
+    tone: { lift: 0.075, gamma: 0.92, gain: 1.04, warmth: 0, sat: 0 },
+    halation: 0.30, chroma: 0,
+    grain: 0.38, dust: 0.20, vignette: 0.24, leak: 0.10,
+    leakColors: ['#ffffff', '#dddddd'],
+    frame: { style: 'thin', color: '#f2f2f2' }, dateStamp: true,
+    paid: false, price: 0
+  },
+
+  /* ================================================================== *
+   * VINTAGE — decades
+   * ================================================================== */
+  {
+    id: 'vintage_50s', name: '50s Kodachrome', tag: '1950s', group: 'vintage',
+    desc: 'Warm, muted 1950s Kodachrome. Low contrast, heavy grain.',
+    filter: 'sepia(0.22) saturate(0.88) contrast(0.92) brightness(1.04)',
+    tone: { lift: 0.045, gamma: 0.94, gain: 1.03, warmth: 0.065, sat: 0.92 },
+    halation: 0.45, chroma: 0.22,
+    grain: 0.62, dust: 0.42, vignette: 0.42, leak: 0.30,
+    leakColors: ['#e8b17a', '#d99a63'],
+    frame: { style: 'thin', color: '#f0e6d2' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'vintage_60s', name: '60s Ektachrome', tag: '1960s', group: 'vintage',
+    desc: 'Cooler, cyan-leaning 1960s slide film. Faded and clean.',
+    filter: 'hue-rotate(8deg) saturate(0.95) contrast(0.96) brightness(1.05)',
+    tone: { lift: 0.055, gamma: 0.97, gain: 1.04, warmth: -0.055, sat: 0.96 },
+    halation: 0.38, chroma: 0.24,
+    grain: 0.44, dust: 0.30, vignette: 0.36, leak: 0.34,
+    leakColors: ['#9fd8e8', '#8fc4dd'],
+    frame: { style: 'thin', color: '#e6f0f2' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'vintage_70s', name: '70s Faded', tag: '1970s', group: 'vintage',
+    desc: 'Orange-brown 1970s cast, lifted blacks and big light leaks.',
+    filter: 'sepia(0.40) saturate(1.10) contrast(0.90) brightness(1.06)',
+    tone: { lift: 0.080, gamma: 0.92, gain: 1.06, warmth: 0.120, sat: 1.12 },
+    halation: 0.62, chroma: 0.34,
+    grain: 0.58, dust: 0.46, vignette: 0.44, leak: 0.72,
+    leakColors: ['#ffb257', '#ff8a3d'],
+    frame: { style: 'thin', color: '#f6e7cd' }, dateStamp: true,
+    paid: false, price: 0
+  },
+  {
+    id: 'vintage_80s', name: '80s Punch', tag: '1980s', group: 'vintage',
+    desc: 'Punchy, saturated 1980s colour. High contrast, slight magenta.',
+    filter: 'contrast(1.28) saturate(1.42) hue-rotate(4deg) brightness(1.04)',
+    tone: { lift: -0.015, gamma: 1.14, gain: 1.03, warmth: 0.045, sat: 1.40 },
+    halation: 0.34, chroma: 0.40,
+    grain: 0.34, dust: 0.22, vignette: 0.40, leak: 0.36,
+    leakColors: ['#ff6fae', '#ff9ecb'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: false,
+    paid: false, price: 0
+  },
+  {
+    id: 'vintage_90s', name: '90s Disposable', tag: '1990s', group: 'vintage',
+    desc: '1990s disposable camera: harsh flash, magenta cast, strong vignette.',
+    filter: 'contrast(1.22) saturate(1.20) hue-rotate(10deg) brightness(1.07)',
+    tone: { lift: -0.010, gamma: 1.12, gain: 1.07, warmth: 0.070, sat: 1.22 },
+    halation: 0.50, chroma: 0.62,
+    grain: 0.66, dust: 0.34, vignette: 0.58, leak: 0.24,
+    leakColors: ['#ff77c8', '#ffd0f0'],
+    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
+    paid: false, price: 0
+  },
+
+  /* ================================================================== *
+   * VINTAGE — classic film simulations
+   * ================================================================== */
   {
     id: 'nomo_135_b', name: 'FaceCam 135 B', tag: '35mm Classic', group: 'vintage',
     desc: 'Balanced classic 35mm. Soft contrast, warm highlights.',
@@ -223,91 +348,6 @@ const CAMERAS = [
     grain: 0.30, dust: 0.18, vignette: 0.42, leak: 0.26,
     leakColors: ['#8fd8ff', '#c6f0ff'],
     frame: { style: 'thin', color: '#eaf6ff' }, dateStamp: false,
-    paid: false, price: 0
-  },
-
-  /* ------------------------------------------------------------------ *
-   * VINTAGE — DECADE LOOKS  (50s · 60s · 70s · 80s · 90s)
-   * ------------------------------------------------------------------ */
-  {
-    id: 'decade_50s', name: '1950s', tag: 'Sepia Cinema', group: 'vintage', era: '50s',
-    desc: 'Soft, faded sepia with deep corners — a hand-tinted 1950s print.',
-    filter: 'sepia(0.55) contrast(0.92) saturate(0.82) brightness(1.04)',
-    tone: { lift: 0.06, gamma: 0.94, gain: 1.03, warmth: 0.10, sat: 0.58 },
-    halation: 0.50, chroma: 0.10,
-    grain: 0.50, dust: 0.30, vignette: 0.56, leak: 0.34,
-    leakColors: ['#f3c98b', '#d9a05b'],
-    frame: { style: 'thin', color: '#efe3c8' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'decade_60s', name: '1960s', tag: 'Kodachrome', group: 'vintage', era: '60s',
-    desc: 'Vivid, saturated Kodachrome warmth with a gentle vintage fade.',
-    filter: 'saturate(1.26) contrast(1.06) sepia(0.14) brightness(1.03)',
-    tone: { lift: 0.03, gamma: 1.02, gain: 1.03, warmth: 0.06, sat: 1.26 },
-    halation: 0.45, chroma: 0.20,
-    grain: 0.34, dust: 0.20, vignette: 0.36, leak: 0.30,
-    leakColors: ['#ffcf7a', '#ff9d5c'],
-    frame: { style: 'thin', color: '#f7edda' }, dateStamp: true,
-    paid: false, price: 0
-  },
-  {
-    id: 'decade_70s', name: '1970s', tag: 'Warm Fade', group: 'vintage', era: '70s',
-    desc: 'Warm brown-orange cast, lifted blacks and heavy grain. Pure 70s.',
-    filter: 'sepia(0.32) saturate(1.10) contrast(0.94) brightness(1.05)',
-    tone: { lift: 0.075, gamma: 0.95, gain: 1.04, warmth: 0.12, sat: 1.06 },
-    halation: 0.60, chroma: 0.28,
-    grain: 0.56, dust: 0.36, vignette: 0.42, leak: 0.50,
-    leakColors: ['#ff9a3c', '#ffcf6b'],
-    frame: { style: 'thin', color: '#f2e2c4' }, dateStamp: true,
-    paid: false, price: 0
-  },
-  {
-    id: 'decade_80s', name: '1980s', tag: 'Neon VHS', group: 'vintage', era: '80s',
-    desc: 'Magenta-and-cyan neon with a VHS glow and blotchy chroma noise.',
-    filter: 'contrast(1.14) saturate(1.35) hue-rotate(-10deg) brightness(1.04)',
-    tone: { lift: 0.0, gamma: 1.08, gain: 1.04, warmth: 0.04, sat: 1.30 },
-    halation: 0.70, chroma: 0.55,
-    grain: 0.50, dust: 0.22, vignette: 0.38, leak: 0.40,
-    leakColors: ['#ff4fd8', '#4fd8ff'],
-    frame: { style: 'thin', color: '#ffffff' }, dateStamp: true,
-    paid: false, price: 0
-  },
-  {
-    id: 'decade_90s', name: '1990s', tag: 'Point & Shoot', group: 'vintage', era: '90s',
-    desc: 'Cool, contrasty compact-camera colour with a slight modern fade.',
-    filter: 'contrast(1.12) saturate(1.05) hue-rotate(-4deg) brightness(1.00)',
-    tone: { lift: -0.01, gamma: 1.08, gain: 1.00, warmth: -0.03, sat: 1.02 },
-    halation: 0.30, chroma: 0.18,
-    grain: 0.34, dust: 0.18, vignette: 0.34, leak: 0.20,
-    leakColors: ['#9fd3ff', '#ffd0a0'],
-    frame: { style: 'thin', color: '#f0f0f0' }, dateStamp: true,
-    paid: false, price: 0
-  },
-
-  /* ------------------------------------------------------------------ *
-   * VINTAGE — BLACK & WHITE
-   * ------------------------------------------------------------------ */
-  {
-    id: 'mono_bw', name: 'B&W Classic', tag: 'Black & White', group: 'vintage', bw: true,
-    desc: 'Classic black-and-white film: full tonal range, grain and a soft vignette.',
-    filter: 'grayscale(1) contrast(1.08) brightness(1.02)',
-    tone: { lift: 0.01, gamma: 1.05, gain: 1.02, warmth: 0.0, sat: 0.0 },
-    halation: 0.35, chroma: 0.06,
-    grain: 0.44, dust: 0.24, vignette: 0.44, leak: 0.06,
-    leakColors: ['#ffffff', '#dddddd'],
-    frame: { style: 'thin', color: '#f0f0f0' }, dateStamp: false,
-    paid: false, price: 0
-  },
-  {
-    id: 'mono_noir', name: 'B&W Noir', tag: 'High-Contrast B&W', group: 'vintage', bw: true,
-    desc: 'Dramatic high-contrast monochrome with crushed blacks and heavy falloff.',
-    filter: 'grayscale(1) contrast(1.38) brightness(0.98)',
-    tone: { lift: -0.04, gamma: 1.24, gain: 1.00, warmth: 0.0, sat: 0.0 },
-    halation: 0.25, chroma: 0.05,
-    grain: 0.50, dust: 0.28, vignette: 0.62, leak: 0.05,
-    leakColors: ['#ffffff'],
-    frame: { style: 'cinema', color: '#0d0d0d' }, dateStamp: false,
     paid: false, price: 0
   }
 ];

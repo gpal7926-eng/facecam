@@ -263,7 +263,7 @@
     const cam = cameraById(state.cameraId);
     $('#video').style.filter = cam.filter;
     $('#demo-canvas').style.filter = cam.filter;
-    const vintage = groupOf(cam) === 'vintage';
+    const vintage = groupOf(cam) !== 'beauty';
     $('#live-vignette').style.opacity = vintage ? Math.min(0.85, (cam.vignette || 0) * 0.8).toFixed(2) : '0';
     const f = $('#live-frame');
     f.className = 'live-frame ' + (vintage && cam.frame ? cam.frame.style : '');
@@ -710,9 +710,9 @@
     $('#set-branding').checked = s.branding !== false;
     const sel = $('#set-default');
     sel.innerHTML = '';
-    ['beauty', 'vintage'].forEach(g => {
+    ['beauty', 'bw', 'vintage'].forEach(g => {
       const og = document.createElement('optgroup');
-      og.label = g === 'beauty' ? 'Beauty' : 'Vintage';
+      og.label = g === 'beauty' ? 'Beauty' : (g === 'bw' ? 'Black & White' : 'Vintage');
       CAMERAS.filter(c => groupOf(c) === g).forEach(c => {
         const o = document.createElement('option');
         o.value = c.id; o.textContent = c.name;
@@ -886,6 +886,7 @@
 
     $('#fallback-demo').addEventListener('click', startDemo);
     $('#fallback-pick').addEventListener('click', () => $('#import-input').click());
+    $('#intro-skip').addEventListener('click', () => Intro.skip());
 
     document.addEventListener('keydown', e => {
       const onVF = document.body.dataset.screen === 'screen-viewfinder';
@@ -924,35 +925,17 @@
     renderStrip();
     setMode('photo');
     renderMiniThumb();
-    runIntro();
-  }
-
-  /* ------------------------------------------------------------------ *
-   * 3D intro
-   * ------------------------------------------------------------------ */
-  function proceedFromIntro() {
-    if (store.seen()) { show('screen-viewfinder'); startCamera().then(applyLiveLook); }
-    else show('screen-onboarding');
-  }
-
-  function runIntro() {
-    const el = $('#screen-intro');
     show('screen-intro');
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      if (el) el.classList.remove('playing');
-      proceedFromIntro();
-    };
-    if (!el) { proceedFromIntro(); return; }
-    el.classList.remove('playing');
-    void el.offsetWidth;            // force the animation to restart
-    el.classList.add('playing');
-    setTimeout(finish, 3000);
-    el.addEventListener('click', finish, { once: true });
-    const skip = $('#intro-skip');
-    if (skip) skip.addEventListener('click', (e) => { e.stopPropagation(); finish(); }, { once: true });
+    Intro.start(afterIntro);
+  }
+
+  function afterIntro() {
+    if (store.seen()) {
+      show('screen-viewfinder');
+      startCamera().then(applyLiveLook);
+    } else {
+      show('screen-onboarding');
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
