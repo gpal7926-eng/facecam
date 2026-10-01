@@ -45,12 +45,14 @@ def main():
         html = html.replace(tag, "<script>\n" + code + "\n</script>")
 
     # inline the app icon so the single file stays self-contained
-    icon_path = os.path.join(WEB, "icon-256.png")
+    icon_path = os.path.join(WEB, "icon-128.png")
     if os.path.exists(icon_path):
         with open(icon_path, "rb") as f:
             uri = "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
         html = html.replace('href="icon-256.png"', 'href="%s"' % uri)
         html = html.replace('src="icon-256.png"', 'src="%s"' % uri)
+        # the standalone file needs no apple-touch-icon copy
+        html = html.replace('<link rel="apple-touch-icon" href="%s">\n' % uri, '')
 
     out = HEADER + html
     with open(OUT, "w", encoding="utf-8") as f:

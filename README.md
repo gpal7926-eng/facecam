@@ -169,21 +169,23 @@ Nothing leaves the device.
 
 ## App icon
 
-The launcher icon is the FaceCam lens mark: a gradient-rounded tile with a camera lens, a
-face-detection frame and a recording dot.
+The launcher icon is the FaceCam lens mark: a navy rounded tile with a camera lens, a
+glowing blue/purple rim, a face-detection frame, a recording dot and the FACE CAM wordmark.
 
 | File | What it is |
 |---|---|
 | [`docs/icon-512.png`](docs/icon-512.png) | 512×512 master (Play Store / store listing) |
 | `android/app/src/main/res/mipmap-*/ic_launcher.png` | legacy square icon, all five densities |
 | `android/app/src/main/res/mipmap-*/ic_launcher_round.png` | legacy round icon |
-| `android/app/src/main/res/mipmap-*/ic_launcher_foreground.png` | adaptive foreground (transparent, safe-zone centred) |
-| `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | adaptive icon (gradient background + foreground) |
-| `android/app/src/main/res/drawable/ic_launcher_background.xml` | gradient background |
-| `web/icon-256.png` | web favicon / apple-touch-icon / onboarding logo |
+| `android/app/src/main/res/mipmap-*/ic_launcher_foreground.png` | adaptive foreground (transparent, mask-safe centred) |
+| `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | adaptive icon (navy background + foreground) |
+| `android/app/src/main/res/drawable/ic_launcher_background.xml` | navy background |
+| `web/icon-256.png` | web favicon / apple-touch-icon |
+| `web/icon-128.png` | onboarding logo (also inlined into the single-file preview) |
+| `tools/facecam_icon.png` | the square master artwork |
 
-Android can't use SVG in `res/`, so the master artwork is rasterised into PNGs at every
-density. Regenerate them with `node tools/rasterize_icon.js` (needs a local Chromium).
+Android can't use SVG in `res/`, so the master is a raster and every density is generated
+from it. Regenerate all of the above with `python3 tools/make_icons.py` (needs Pillow).
 
 ---
 
