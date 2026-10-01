@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Private gallery photos exposed for sharing via the FileProvider. -->
+    <files-path
+        name="facecam_gallery"
+        path="gallery/" />
+    <files-path
+        name="facecam_files"
+        path="." />
+    <cache-path
+        name="facecam_cache"
+        path="." />
+    <external-files-path
+        name="facecam_external"
+        path="." />
+</paths>

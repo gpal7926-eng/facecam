@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FaceCam</string>
+
+    <!-- Onboarding / splash -->
+    <string name="splash_tagline">vintage film camera</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_get_started">Get started</string>
+    <string name="onboarding_skip">Skip</string>
+
+    <!-- Viewfinder -->
+    <string name="viewfinder_select_camera">Select camera</string>
+    <string name="viewfinder_flash">Flash</string>
+    <string name="viewfinder_switch_camera">Switch camera</string>
+    <string name="viewfinder_self_timer">Self timer</string>
+    <string name="viewfinder_gallery">Gallery</string>
+    <string name="viewfinder_settings">Settings</string>
+    <string name="viewfinder_double_exposure">Double exposure</string>
+    <string name="viewfinder_developing">Developing\u2026</string>
+    <string name="viewfinder_shop">Camera shop</string>
+
+    <!-- Camera shop -->
+    <string name="shop_title">Camera Shop</string>
+    <string name="shop_owned">OWNED</string>
+    <string name="shop_buy">Buy</string>
+    <string name="shop_pro_title">FaceCam PRO</string>
+    <string name="shop_pro_subtitle">All cameras, gallery import, no ads, no waiting</string>
+
+    <!-- Paywall -->
+    <string name="paywall_title">FaceCam PRO</string>
+    <string name="paywall_subtitle">Everything, forever. One payment.</string>
+    <string name="paywall_unlock">Unlock PRO</string>
+    <string name="paywall_restore">Restore purchases</string>
+    <string name="paywall_active">PRO is active - thank you!</string>
+
+    <!-- Gallery -->
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_empty">No photos yet. Shoot something on film!</string>
+    <string name="gallery_save">Save to device</string>
+    <string name="gallery_share">Share</string>
+    <string name="gallery_delete">Delete</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_date_stamp">Date stamp</string>
+    <string name="settings_date_stamp_sub">Burn the date into the photo (like old film cameras)</string>
+    <string name="settings_border">Border</string>
+    <string name="settings_border_sub">Draw the camera\'s film frame around each photo</string>
+    <string name="settings_shutter_sound">Shutter sound</string>
+    <string name="settings_shutter_sound_sub">Play a shutter click when you take a photo</string>
+    <string name="settings_default_camera">Default camera</string>
+    <string name="settings_restore">Restore purchases</string>
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_version">FaceCam v1.0.0 - all data stays on your device.</string>
+
+    <!-- Placeholder AdMob unit ids. Replace ALL of these with real ids before publishing. -->
+    <string name="admob_banner_unit_id" translatable="false">ca-app-pub-0000000000000000/0000000000</string>
+    <string name="admob_interstitial_unit_id" translatable="false">ca-app-pub-0000000000000000/1111111111</string>
+
+    <!-- Placeholder Play Billing product ids. Create matching products in the Play Console. -->
+    <string name="billing_pro_product_id" translatable="false">facecam_pro_unlock</string>
+    <string name="billing_camera_prefix" translatable="false">cam_</string>
+</resources>

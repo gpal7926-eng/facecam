@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0c">
+<meta name="description" content="FaceCam — offline vintage film camera. Purani film wali feel, ek click mein.">
+<title>FaceCam — Vintage Film Camera</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Splash -->
+  <section class="screen" id="screen-splash">
+    <div class="splash-inner">
+      <div class="logo">FaceCam</div>
+      <div class="logo-sub">Purani film wali feel, ek click mein.</div>
+      <div class="film-strip"></div>
+    </div>
+  </section>
+
+  <!-- Onboarding -->
+  <section class="screen" id="screen-onboarding">
+    <div class="onb">
+      <div class="logo small">FaceCam</div>
+      <p class="onb-lead">Ek point-and-shoot camera jo aapki normal photos ko purani film jaisa bana deta hai. Koi slider nahi — bas click.</p>
+      <ul class="onb-list">
+        <li>13 vintage film cameras</li>
+        <li>Random grain, dust, light leaks, vignette</li>
+        <li>Double exposure aur instant &ldquo;developing&rdquo; wait</li>
+        <li>100% offline — sab kuch aapke device par</li>
+      </ul>
+      <button class="btn primary" id="btn-onboard">Enable camera &amp; start</button>
+      <p class="fine">Camera permission chahiye. Koi data upload nahi hota.</p>
+    </div>
+  </section>
+
+  <!-- Viewfinder -->
+  <section class="screen" id="screen-viewfinder">
+    <div class="vf">
+      <video id="video" playsinline autoplay muted></video>
+      <div id="live-vignette" class="live-vignette"></div>
+      <div id="live-frame" class="live-frame"></div>
+
+      <div id="cam-fallback" class="cam-fallback">
+        <p>Camera is device par available nahi hai.</p>
+        <p class="fine">Gallery se ek photo import karke film look test kar sakte hain.</p>
+        <button class="btn primary" id="fallback-pick">Photo choose karein</button>
+      </div>
+
+      <div id="countdown" class="countdown"></div>
+
+      <div class="vf-top">
+        <div class="vf-title"><span id="cam-name">FaceCam 135 B</span><small id="cam-tag">35mm Classic</small></div>
+        <div class="vf-top-actions">
+          <button class="icon-btn" id="btn-paywall" title="PRO">PRO</button>
+          <button class="icon-btn" id="btn-settings" title="Settings">&#9881;</button>
+        </div>
+      </div>
+
+      <div class="vf-bottom">
+        <div class="vf-row small-row">
+          <button class="icon-btn" id="btn-gallery" title="Gallery">&#9635;</button>
+          <button class="icon-btn" id="btn-picker" title="Cameras">&#9788;</button>
+          <button class="icon-btn" id="btn-shop" title="Shop">&#128722;</button>
+        </div>
+        <div class="vf-row main-row">
+          <button class="icon-btn" id="btn-timer" title="Self-timer">&#8986;</button>
+          <button class="icon-btn" id="btn-flash" title="Flash">&#9889;</button>
+          <button class="shutter" id="btn-shutter" title="Shutter"><span></span></button>
+          <button class="icon-btn" id="btn-double" title="Double exposure">2x</button>
+          <button class="icon-btn" id="btn-switch" title="Flip camera">&#8646;</button>
+        </div>
+        <div class="vf-row import-row">
+          <button class="link-btn" id="btn-import">Import photo (PRO)</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Developing -->
+  <section class="screen" id="screen-developing">
+    <div class="dev-wrap">
+      <img id="dev-img" alt="Developing">
+      <p class="dev-text">Developing&hellip;</p>
+    </div>
+  </section>
+
+  <!-- Result -->
+  <section class="screen" id="screen-result">
+    <div class="result-wrap">
+      <img id="result-img" alt="Result">
+      <div class="result-actions">
+        <button class="btn" id="result-retake">Retake</button>
+        <button class="btn primary" id="result-save">Save</button>
+        <button class="btn" id="result-share">Share</button>
+      </div>
+      <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
+    </div>
+  </section>
+
+  <!-- Gallery -->
+  <section class="screen" id="screen-gallery">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Gallery</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="gallery-grid" id="gallery-grid"></div>
+      <p id="gallery-empty" class="empty">Abhi koi photo nahi. Camera se pehli shot lein.</p>
+    </div>
+    <div class="ad-banner">Ad &mdash; banner (placeholder)</div>
+  </section>
+
+  <!-- Settings -->
+  <section class="screen" id="screen-settings">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Settings</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="settings-list">
+        <label class="row"><span>Date stamp</span><input type="checkbox" id="set-datestamp"></label>
+        <label class="row"><span>Border / frame</span><input type="checkbox" id="set-border"></label>
+        <label class="row"><span>Shutter sound</span><input type="checkbox" id="set-sound"></label>
+        <label class="row"><span>Default camera</span><select id="set-default"></select></label>
+        <div class="row"><span>Plan</span><strong id="set-pro-state">Free plan</strong></div>
+        <button class="link-btn" id="set-reset">Reset app data</button>
+        <a class="link-btn" href="#" onclick="return false;">Privacy policy</a>
+        <p class="fine">Sab data sirf aapke device par rehta hai. Koi server, koi login nahi.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Shop -->
+  <section class="screen" id="screen-shop">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>Camera Shop</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div id="shop-pro-banner" class="pro-banner">
+        <span id="shop-pro-text">PRO unlock karein</span>
+        <span class="pro-cta">Get PRO</span>
+      </div>
+      <div class="shop-grid" id="shop-grid"></div>
+    </div>
+  </section>
+
+  <!-- Paywall -->
+  <section class="screen" id="screen-paywall">
+    <div class="topbar">
+      <button class="icon-btn" data-back="viewfinder">&#8592;</button>
+      <h1>FaceCam PRO</h1>
+      <span></span>
+    </div>
+    <div class="screen-body">
+      <div class="paywall">
+        <div class="logo small">PRO</div>
+        <ul class="onb-list">
+          <li>Saare cameras, aane wale bhi</li>
+          <li>Gallery se photo import</li>
+          <li>Developing wait off</li>
+          <li>Ads hatayein</li>
+        </ul>
+        <button class="btn primary" id="paywall-buy">Unlock PRO &mdash; &#8377;199</button>
+        <button class="link-btn" id="paywall-restore">Restore purchases</button>
+        <p class="fine">Demo preview: yahan PRO local storage mein set hota hai.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Camera picker sheet -->
+  <div class="sheet" id="sheet-picker">
+    <div class="sheet-backdrop"></div>
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Cameras</h2>
+        <button class="icon-btn" data-close-sheet="sheet-picker">&#10005;</button>
+      </div>
+      <div class="picker-list" id="picker-list"></div>
+    </div>
+  </div>
+
+  <!-- Photo viewer -->
+  <div class="viewer" id="viewer">
+    <img id="viewer-img" alt="Photo">
+    <div class="viewer-actions">
+      <button class="btn" id="viewer-close">Close</button>
+      <button class="btn" id="viewer-share">Share</button>
+      <button class="btn danger" id="viewer-delete">Delete</button>
+    </div>
+  </div>
+
+  <!-- Simulated interstitial -->
+  <div id="interstitial" class="interstitial">
+    <div class="ad-card">Ad &mdash; interstitial (placeholder)<br><small>PRO le kar ads hatayein</small></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <input type="file" id="import-input" accept="image/*" hidden>
+</div>
+
+<script src="js/cameras.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

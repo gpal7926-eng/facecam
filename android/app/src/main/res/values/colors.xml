@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="amber">#E8A33D</color>
+    <color name="amber_dark">#B4771F</color>
+    <color name="cream">#F5F2EA</color>
+    <color name="charcoal">#141414</color>
+    <color name="film_black">#0A0A0A</color>
+    <color name="warm_grey">#2A2724</color>
+    <color name="leak_red">#D96A5A</color>
+
+    <!-- Launcher icon background -->
+    <color name="ic_launcher_background">#141414</color>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base app theme. Compose drives the actual UI colours; this theme mainly
+         controls the window background and status/navigation bars. -->
+    <style name="Theme.FaceCam" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/film_black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/film_black</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
+    </style>
+
+</resources>
